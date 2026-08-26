@@ -29,10 +29,11 @@ if ! git diff --cached --quiet; then
   git commit -m "WIP: auto-sync $(date '+%Y-%m-%d %H:%M')" >/dev/null 2>&1 || true
   if [ -z "$(git remote)" ]; then
     MSG="${MSG:+$MSG }git-sync: committed changes locally (no remote configured, not pushed)."
-  elif git push >/dev/null 2>&1; then
+  elif git push >"$REPO_ROOT/.git/git-sync-push-error.log" 2>&1; then
+    rm -f "$REPO_ROOT/.git/git-sync-push-error.log"
     MSG="${MSG:+$MSG }git-sync: committed and pushed changes."
   else
-    MSG="${MSG:+$MSG }git-sync: committed changes but push failed (check remote/auth)."
+    MSG="${MSG:+$MSG }git-sync: committed changes but push failed -- see .git/git-sync-push-error.log"
   fi
 fi
 

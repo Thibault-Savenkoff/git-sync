@@ -23,11 +23,13 @@ if ($LASTEXITCODE -ne 0) {
   if (-not (git remote)) {
     $msg = "$msg git-sync: committed changes locally (no remote configured, not pushed)."
   } else {
-    git push *> $null
+    $logFile = Join-Path $repoRoot ".git/git-sync-push-error.log"
+    git push *> $logFile
     if ($LASTEXITCODE -eq 0) {
+      Remove-Item -Force $logFile -ErrorAction SilentlyContinue
       $msg = "$msg git-sync: committed and pushed changes."
     } else {
-      $msg = "$msg git-sync: committed changes but push failed (check remote/auth)."
+      $msg = "$msg git-sync: committed changes but push failed -- see .git/git-sync-push-error.log"
     }
   }
 }
