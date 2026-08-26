@@ -1,16 +1,17 @@
 if (-not ((git rev-parse --is-inside-work-tree) 2>$null)) { exit 0 }
 
-$gitDir = (git rev-parse --git-dir)
-$excludeFile = Join-Path $gitDir "info/exclude"
+$repoRoot = (git rev-parse --show-toplevel)
+$gitignore = Join-Path $repoRoot ".gitignore"
 $patternsFile = Join-Path $env:CLAUDE_PLUGIN_ROOT "hooks/ignore-patterns.txt"
 $marker = "# git-sync managed patterns"
 
-$alreadyMerged = (Test-Path $excludeFile) -and (Select-String -Path $excludeFile -Pattern ([regex]::Escape($marker)) -Quiet)
+$alreadyMerged = (Test-Path $gitignore) -and (Select-String -Path $gitignore -Pattern ([regex]::Escape($marker)) -Quiet)
 if ((Test-Path $patternsFile) -and -not $alreadyMerged) {
-  New-Item -ItemType Directory -Force -Path (Split-Path $excludeFile) | Out-Null
-  Add-Content -Path $excludeFile -Value ""
-  Add-Content -Path $excludeFile -Value $marker
-  Get-Content $patternsFile | Add-Content -Path $excludeFile
+  if ((Test-Path $gitignore) -and (Get-Item $gitignore).Length -gt 0) {
+    Add-Content -Path $gitignore -Value ""
+  }
+  Add-Content -Path $gitignore -Value $marker
+  Get-Content $patternsFile | Add-Content -Path $gitignore
 }
 
 git add -A
