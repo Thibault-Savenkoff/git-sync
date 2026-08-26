@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "git-sync",
+  "description": "Auto-sync git repos across machines when using Claude Code.",
+  "owner": {
+    "name": "Thibault Savenkoff"
+  },
+  "plugins": [
+    {
+      "name": "git-sync",
+      "description": "Auto-pull on session start, auto-commit + push on session stop.",
+      "source": "./",
+      "category": "productivity"
+    }
+  ]
+}

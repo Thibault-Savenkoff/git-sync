@@ -1,0 +1,31 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then git pull --ff-only >/dev/null 2>&1; fi; true",
+            "commandWindows": "if ((git rev-parse --is-inside-work-tree) 2>$null) { git pull --ff-only *> $null }",
+            "timeout": 15,
+            "statusMessage": "Syncing repo (git pull)..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then git add -A; if ! git diff --cached --quiet; then git commit -m \"WIP: auto-sync $(date '+%Y-%m-%d %H:%M')\" >/dev/null 2>&1 && git push >/dev/null 2>&1; fi; fi; true",
+            "commandWindows": "if ((git rev-parse --is-inside-work-tree) 2>$null) { git add -A; git diff --cached --quiet; if ($LASTEXITCODE -ne 0) { git commit -m \"WIP: auto-sync $(Get-Date -Format 'yyyy-MM-dd HH:mm')\" *> $null; git push *> $null } }",
+            "timeout": 15,
+            "statusMessage": "Syncing repo (commit + push)..."
+          }
+        ]
+      }
+    ]
+  }
+}

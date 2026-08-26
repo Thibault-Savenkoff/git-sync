@@ -1,0 +1,8 @@
+{
+  "name": "git-sync",
+  "version": "1.0.0",
+  "description": "Auto-pulls on session start and auto-commits + pushes on session stop, so Claude Code projects stay in sync across machines.",
+  "author": {
+    "name": "Thibault Savenkoff"
+  }
+}
