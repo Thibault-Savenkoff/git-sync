@@ -4,6 +4,7 @@ $repoRoot = (git rev-parse --show-toplevel)
 $gitignore = Join-Path $repoRoot ".gitignore"
 $patternsFile = Join-Path $env:CLAUDE_PLUGIN_ROOT "hooks/ignore-patterns.txt"
 $marker = "# git-sync managed patterns"
+$msg = ""
 
 $alreadyMerged = (Test-Path $gitignore) -and (Select-String -Path $gitignore -Pattern ([regex]::Escape($marker)) -Quiet)
 if ((Test-Path $patternsFile) -and -not $alreadyMerged) {
@@ -12,6 +13,7 @@ if ((Test-Path $patternsFile) -and -not $alreadyMerged) {
   }
   Add-Content -Path $gitignore -Value $marker
   Get-Content $patternsFile | Add-Content -Path $gitignore
+  $msg = "git-sync: added a .gitignore with common ignore patterns to this repo."
 }
 
 git add -A
@@ -19,11 +21,18 @@ git diff --cached --quiet
 if ($LASTEXITCODE -ne 0) {
   git commit -m "WIP: auto-sync $(Get-Date -Format 'yyyy-MM-dd HH:mm')" *> $null
   if (-not (git remote)) {
-    Write-Output "git-sync: no remote configured, committed locally only (not pushed)."
+    $msg = "$msg git-sync: committed changes locally (no remote configured, not pushed)."
   } else {
     git push *> $null
-    if ($LASTEXITCODE -ne 0) {
-      Write-Output "git-sync: commit made but push failed (check remote/auth)."
+    if ($LASTEXITCODE -eq 0) {
+      $msg = "$msg git-sync: committed and pushed changes."
+    } else {
+      $msg = "$msg git-sync: committed changes but push failed (check remote/auth)."
     }
   }
+}
+
+$msg = $msg.Trim()
+if ($msg) {
+  @{ hookSpecificOutput = @{ hookEventName = "Stop"; systemMessage = $msg } } | ConvertTo-Json -Compress
 }
