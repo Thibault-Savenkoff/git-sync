@@ -15,8 +15,10 @@ they never block a session.
 
 ## Install
 
-Add this plugin to your Claude Code plugin marketplace/config, then enable
-it for any project you want auto-synced.
+```
+/plugin marketplace add Thibault-Savenkoff/git-sync
+/plugin install git-sync
+```
 
 ## Notes
 
