@@ -22,6 +22,10 @@ fi
 git add -A
 if ! git diff --cached --quiet; then
   git commit -m "WIP: auto-sync $(date '+%Y-%m-%d %H:%M')" >/dev/null 2>&1 || true
-  git push >/dev/null 2>&1 || true
+  if [ -z "$(git remote)" ]; then
+    echo "git-sync: no remote configured, committed locally only (not pushed)."
+  else
+    git push >/dev/null 2>&1 || echo "git-sync: commit made but push failed (check remote/auth)."
+  fi
 fi
 exit 0
