@@ -21,6 +21,7 @@ fi
 
 git add -A
 if ! git diff --cached --quiet; then
-  git commit -m "WIP: auto-sync $(date '+%Y-%m-%d %H:%M')" >/dev/null 2>&1 && git push >/dev/null 2>&1
+  git commit -m "WIP: auto-sync $(date '+%Y-%m-%d %H:%M')" >/dev/null 2>&1 || true
+  git push >/dev/null 2>&1 || true
 fi
 exit 0
