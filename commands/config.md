@@ -1,6 +1,6 @@
 ---
 description: Show and change git-sync settings for the current repo
-allowed-tools: Bash(git config:*), Bash(git rev-parse:*)
+allowed-tools: Bash(git config:*), Bash(git rev-parse:*), AskUserQuestion
 ---
 
 Current git-sync settings in this repo:
@@ -13,9 +13,14 @@ Current git-sync settings in this repo:
 
 The user asked: $ARGUMENTS
 
-Show the settings above as a short table, then act on what they asked. If they
-did not ask for a specific change, just show the table and list what can be
-changed — do not change anything.
+Show the settings above as a short table.
+
+If they asked for a specific change, apply it and stop there.
+
+If they asked for nothing (the line above is empty), use AskUserQuestion to ask
+what they want to change — one question for syncing (on/off), one for the commit
+identity (bot/self), each defaulting to whatever is currently set. Offer a way to
+leave everything as it is. Then apply only what they picked.
 
 Settings live in this repo's `.git/config`, so they are per-repo and never
 committed. Apply changes with:
