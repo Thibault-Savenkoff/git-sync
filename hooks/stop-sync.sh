@@ -9,6 +9,11 @@ set -e
 
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0
 
+# Opt-out: per-repo (git config git-sync.disabled true) or per-session
+# (GIT_SYNC_DISABLED=1 claude).
+[ "$(git config --get git-sync.disabled)" = "true" ] && exit 0
+[ -n "$GIT_SYNC_DISABLED" ] && exit 0
+
 REPO_ROOT=$(git rev-parse --show-toplevel)
 GITIGNORE="$REPO_ROOT/.gitignore"
 PATTERNS_FILE="${CLAUDE_PLUGIN_ROOT}/hooks/ignore-patterns.txt"
@@ -26,7 +31,16 @@ fi
 
 git add -A
 if ! git diff --cached --quiet; then
-  git commit -m "WIP: auto-sync $(date '+%Y-%m-%d %H:%M')" >/dev/null 2>&1 || true
+  # Attributed to a bot identity and left unsigned, so auto-commits stay
+  # visibly distinct from the ones you actually wrote.
+  GIT_AUTHOR_NAME="git-sync bot" \
+  GIT_AUTHOR_EMAIL="325430966+gitsync-bot@users.noreply.github.com" \
+  GIT_COMMITTER_NAME="git-sync bot" \
+  GIT_COMMITTER_EMAIL="325430966+gitsync-bot@users.noreply.github.com" \
+  git -c commit.gpgsign=false \
+    commit -m "WIP: auto-sync $(date '+%Y-%m-%d %H:%M')" \
+           -m "Committed automatically by git-sync
+https://github.com/Thibault-Savenkoff/git-sync" >/dev/null 2>&1 || true
   if [ -z "$(git remote)" ]; then
     MSG="${MSG:+$MSG }git-sync: committed changes locally (no remote configured, not pushed)."
   elif git push >"$REPO_ROOT/.git/git-sync-push-error.log" 2>&1; then
