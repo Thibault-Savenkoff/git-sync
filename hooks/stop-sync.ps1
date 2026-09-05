@@ -24,14 +24,24 @@ if ((Test-Path $patternsFile) -and -not $alreadyMerged) {
 git add -A
 git diff --cached --quiet
 if ($LASTEXITCODE -ne 0) {
-  # Attributed to a bot identity and left unsigned, so auto-commits stay
-  # visibly distinct from the ones you actually wrote.
-  $env:GIT_AUTHOR_NAME = "git-sync bot"
-  $env:GIT_AUTHOR_EMAIL = "325430966+gitsync-bot@users.noreply.github.com"
-  $env:GIT_COMMITTER_NAME = "git-sync bot"
-  $env:GIT_COMMITTER_EMAIL = "325430966+gitsync-bot@users.noreply.github.com"
+  # Default: attributed to a bot identity and left unsigned, so auto-commits
+  # stay visibly distinct from the ones you actually wrote. Set
+  # `git config git-sync.identity self` to commit as yourself instead.
+  $signArgs = @("-c", "commit.gpgsign=false")
+  if ((git config --get git-sync.identity) -eq "self") {
+    $signArgs = @()
+  } else {
+    $botName = (git config --get git-sync.botName)
+    if (-not $botName) { $botName = "git-sync bot" }
+    $botEmail = (git config --get git-sync.botEmail)
+    if (-not $botEmail) { $botEmail = "325430966+gitsync-bot@users.noreply.github.com" }
+    $env:GIT_AUTHOR_NAME = $botName
+    $env:GIT_AUTHOR_EMAIL = $botEmail
+    $env:GIT_COMMITTER_NAME = $botName
+    $env:GIT_COMMITTER_EMAIL = $botEmail
+  }
   $trailer = "Committed automatically by git-sync`nhttps://github.com/Thibault-Savenkoff/git-sync"
-  git -c commit.gpgsign=false commit -m "WIP: auto-sync $(Get-Date -Format 'yyyy-MM-dd HH:mm')" -m $trailer *> $null
+  git @signArgs commit -m "WIP: auto-sync $(Get-Date -Format 'yyyy-MM-dd HH:mm')" -m $trailer *> $null
   if (-not (git remote)) {
     $msg = "$msg git-sync: committed changes locally (no remote configured, not pushed)."
   } else {

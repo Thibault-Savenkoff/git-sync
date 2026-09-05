@@ -31,13 +31,21 @@ fi
 
 git add -A
 if ! git diff --cached --quiet; then
-  # Attributed to a bot identity and left unsigned, so auto-commits stay
-  # visibly distinct from the ones you actually wrote.
-  GIT_AUTHOR_NAME="git-sync bot" \
-  GIT_AUTHOR_EMAIL="325430966+gitsync-bot@users.noreply.github.com" \
-  GIT_COMMITTER_NAME="git-sync bot" \
-  GIT_COMMITTER_EMAIL="325430966+gitsync-bot@users.noreply.github.com" \
-  git -c commit.gpgsign=false \
+  # Default: attributed to a bot identity and left unsigned, so auto-commits
+  # stay visibly distinct from the ones you actually wrote. Set
+  # `git config git-sync.identity self` to commit as yourself instead.
+  SIGN="-c commit.gpgsign=false"
+  if [ "$(git config --get git-sync.identity)" = "self" ]; then
+    SIGN=""
+  else
+    GIT_AUTHOR_NAME=$(git config --get git-sync.botName || echo "git-sync bot")
+    GIT_AUTHOR_EMAIL=$(git config --get git-sync.botEmail \
+      || echo "325430966+gitsync-bot@users.noreply.github.com")
+    GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME"
+    GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
+    export GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL
+  fi
+  git $SIGN \
     commit -m "WIP: auto-sync $(date '+%Y-%m-%d %H:%M')" \
            -m "Committed automatically by git-sync
 https://github.com/Thibault-Savenkoff/git-sync" >/dev/null 2>&1 || true

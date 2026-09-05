@@ -26,20 +26,31 @@ they never block a session.
 /plugin install git-sync
 ```
 
-## Turning it off for a repo or a session
+## Configuration
 
-Some projects shouldn't be auto-committed. Two ways to opt out:
+Run `/git-sync:config` in Claude Code to see the current settings and change
+them. Everything lives in the repo's `.git/config`, so it is per-repo, local
+to your machine, and never committed.
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `git-sync.disabled` | `false` | `true` turns both hooks off for this repo |
+| `git-sync.identity` | `bot` | `self` commits under your own name, signed if you sign |
+| `git-sync.botName` | `git-sync bot` | Author name used in bot mode |
+| `git-sync.botEmail` | the plugin's machine account | Author email used in bot mode |
 
 ```sh
-# Per repo -- persistent, stored in .git/config, never committed
+# Don't auto-commit this repo at all
 git config git-sync.disabled true
 
-# Per session -- one-off
+# Skip git-sync for one session only (not a stored setting)
 GIT_SYNC_DISABLED=1 claude
+
+# Auto-commit under your own name instead of the bot
+git config git-sync.identity self
 ```
 
-Either one disables both hooks: no pull on start, no commit or push on stop.
-Re-enable a repo with `git config --unset git-sync.disabled`.
+Undo any of them with `git config --unset git-sync.<name>`.
 
 ## Notes
 
