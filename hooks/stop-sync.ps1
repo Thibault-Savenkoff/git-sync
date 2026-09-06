@@ -56,7 +56,23 @@ if ($LASTEXITCODE -ne 0) {
   }
 }
 
+# Opt-in project notes: `git config git-sync.notes true`. See stop-sync.sh for
+# why the injection lives on Stop and not on PreCompact or SessionEnd.
+$context = ""
+if ((git config --get git-sync.notes) -eq "true") {
+  $stamp = Join-Path $repoRoot ".git/git-sync-notes-stamp"
+  # ponytail: fixed 30 min; make it git config git-sync.notesInterval if anyone asks.
+  $stale = -not (Test-Path $stamp) -or ((Get-Item $stamp).LastWriteTime -lt (Get-Date).AddMinutes(-30))
+  if ($stale) {
+    New-Item -ItemType File -Path $stamp -Force | Out-Null
+    $context = "git-sync: avant que ce contexte parte en compaction, mets a jour la section '## Etat courant' de CLAUDE.md a la racine du repo (cree le fichier ou la section s'ils sont absents) avec les decisions prises, ce qui est en cours, et les pieges rencontres. Uniquement le macro et le non-derivable: jamais l'arborescence, jamais du code recopie. Si rien de durable n'a ete decide depuis la derniere mise a jour, ne touche a rien et n'en parle pas."
+  }
+}
+
 $msg = $msg.Trim()
-if ($msg) {
-  @{ hookSpecificOutput = @{ hookEventName = "Stop"; systemMessage = $msg } } | ConvertTo-Json -Compress
+if ($msg -or $context) {
+  $out = @{ hookEventName = "Stop" }
+  if ($msg) { $out.systemMessage = $msg }
+  if ($context) { $out.additionalContext = $context }
+  @{ hookSpecificOutput = $out } | ConvertTo-Json -Compress
 }

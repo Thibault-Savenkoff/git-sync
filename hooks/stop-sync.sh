@@ -59,8 +59,29 @@ https://github.com/Thibault-Savenkoff/git-sync" >/dev/null 2>&1 || true
   fi
 fi
 
-if [ -n "$MSG" ]; then
-  ESCAPED=$(printf '%s' "$MSG" | sed 's/\\/\\\\/g; s/"/\\"/g')
-  printf '{"hookSpecificOutput":{"hookEventName":"Stop","systemMessage":"%s"}}\n' "$ESCAPED"
+# Opt-in project notes: `git config git-sync.notes true`.
+#
+# A hook is a shell script -- it cannot summarise a session itself, only ask the
+# model to. Stop is the one event that both fires while the session is still
+# alive and accepts additionalContext; PreCompact and SessionEnd accept only
+# systemMessage, so injecting there is a silent no-op. Throttled through an
+# untracked stamp in .git, so a long session is asked now and then rather than
+# after every turn.
+CONTEXT=""
+if [ "$(git config --get git-sync.notes)" = "true" ]; then
+  STAMP="$REPO_ROOT/.git/git-sync-notes-stamp"
+  # ponytail: fixed 30 min; make it git config git-sync.notesInterval if anyone asks.
+  if [ ! -f "$STAMP" ] || [ -z "$(find "$STAMP" -mmin -30 2>/dev/null)" ]; then
+    : > "$STAMP"
+    CONTEXT="git-sync: avant que ce contexte parte en compaction, mets a jour la section '## Etat courant' de CLAUDE.md a la racine du repo (cree le fichier ou la section s'ils sont absents) avec les decisions prises, ce qui est en cours, et les pieges rencontres. Uniquement le macro et le non-derivable: jamais l'arborescence, jamais du code recopie. Si rien de durable n'a ete decide depuis la derniere mise a jour, ne touche a rien et n'en parle pas."
+  fi
+fi
+
+if [ -n "$MSG" ] || [ -n "$CONTEXT" ]; then
+  esc() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+  OUT='{"hookSpecificOutput":{"hookEventName":"Stop"'
+  [ -n "$MSG" ] && OUT="$OUT,\"systemMessage\":\"$(esc "$MSG")\""
+  [ -n "$CONTEXT" ] && OUT="$OUT,\"additionalContext\":\"$(esc "$CONTEXT")\""
+  printf '%s}}\n' "$OUT"
 fi
 exit 0
