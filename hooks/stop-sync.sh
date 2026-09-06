@@ -73,7 +73,7 @@ if [ "$(git config --get git-sync.notes)" = "true" ]; then
   # ponytail: fixed 30 min; make it git config git-sync.notesInterval if anyone asks.
   if [ ! -f "$STAMP" ] || [ -z "$(find "$STAMP" -mmin -30 2>/dev/null)" ]; then
     : > "$STAMP"
-    CONTEXT="git-sync: avant que ce contexte parte en compaction, mets a jour la section '## Etat courant' de CLAUDE.md a la racine du repo (cree le fichier ou la section s'ils sont absents) avec les decisions prises, ce qui est en cours, et les pieges rencontres. Uniquement le macro et le non-derivable: jamais l'arborescence, jamais du code recopie. Si rien de durable n'a ete decide depuis la derniere mise a jour, ne touche a rien et n'en parle pas."
+    CONTEXT="git-sync: si quelque chose de durable a ete decide ou construit depuis la derniere mise a jour, invoque la skill git-sync:notes pour rafraichir la section '## Etat courant' de CLAUDE.md avant que ce contexte parte en compaction. Sinon ne touche a rien et n'en parle pas."
   fi
 fi
 

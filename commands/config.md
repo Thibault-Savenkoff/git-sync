@@ -10,7 +10,7 @@ Current git-sync settings in this repo:
 - identity: !`git config --get git-sync.identity || echo "bot (default)"`
 - bot name: !`git config --get git-sync.botName || echo "git-sync bot (default)"`
 - bot email: !`git config --get git-sync.botEmail || echo "325430966+gitsync-bot@users.noreply.github.com (default)"`
-- project notes: !`git config --get git-sync.notes || echo "false (default)"`
+- project notes nudge: !`git config --get git-sync.notes || echo "false (default)"`
 - transcript archive: !`git config --get git-sync.archive || echo "false (default)"`
 
 The user asked: $ARGUMENTS
@@ -32,7 +32,7 @@ committed. Apply changes with:
 - commit as the user: `git config git-sync.identity self`
 - commit as the bot (default): `git config --unset git-sync.identity`
 - custom bot identity: `git config git-sync.botName "..."` and `git config git-sync.botEmail "..."`
-- project notes on/off: `git config git-sync.notes true` / `git config --unset git-sync.notes`
+- project notes nudge on/off: `git config git-sync.notes true` / `git config --unset git-sync.notes`
 - transcript archive on/off: `git config git-sync.archive true` / `git config --unset git-sync.archive`
 
 Two things worth telling them when relevant:
@@ -42,6 +42,9 @@ Two things worth telling them when relevant:
 - To disable git-sync for a single session instead of the whole repo, they run
   `GIT_SYNC_DISABLED=1 claude`. That is not a stored setting, so it will not
   show up in the table above.
+- The `git-sync:notes` skill is always available, with or without the nudge
+  setting: they can just ask for a write-up. The setting only makes Claude
+  check on its own at the end of a turn, every 30 minutes at most.
 - Project notes edit a tracked file (`CLAUDE.md`) and the sync hooks push it.
   The transcript archive does the opposite: it stays in
   `~/.claude/git-sync-sessions/`, local to this machine, never committed,
