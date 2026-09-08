@@ -1,78 +1,90 @@
-if (-not ((git rev-parse --is-inside-work-tree) 2>$null)) { exit 0 }
+# Push the work tree to a checkpoint branch on session stop.
+# See hooks/stop-sync.sh for why this never runs `git commit`.
+. (Join-Path $env:CLAUDE_PLUGIN_ROOT "hooks/lib.ps1")
 
-# Opt-out: per-repo (git config git-sync.disabled true) or per-session
-# (GIT_SYNC_DISABLED=1).
-if ((git config --get git-sync.disabled) -eq "true") { exit 0 }
-if ($env:GIT_SYNC_DISABLED) { exit 0 }
+if (-not (Gs-Enabled)) { exit 0 }
 
-$repoRoot = (git rev-parse --show-toplevel)
-$gitignore = Join-Path $repoRoot ".gitignore"
-$patternsFile = Join-Path $env:CLAUDE_PLUGIN_ROOT "hooks/ignore-patterns.txt"
-$marker = "# git-sync managed patterns"
+$repoRoot = Gs-RepoRoot
 $msg = ""
+$context = ""
 
-$alreadyMerged = (Test-Path $gitignore) -and (Select-String -Path $gitignore -Pattern ([regex]::Escape($marker)) -Quiet)
-if ((Test-Path $patternsFile) -and -not $alreadyMerged) {
-  if ((Test-Path $gitignore) -and (Get-Item $gitignore).Length -gt 0) {
-    Add-Content -Path $gitignore -Value ""
+if ((Gs-Mode) -eq "checkpoint") {
+  $syncBranch = Gs-SyncBranch
+  if (-not $syncBranch) {
+    Gs-Json "Stop" "git-sync: HEAD detache, pas de checkpoint (aucune branche a suivre)." ""
+    exit 0
   }
-  Add-Content -Path $gitignore -Value $marker
-  Get-Content $patternsFile | Add-Content -Path $gitignore
-  $msg = "git-sync: added a .gitignore with common ignore patterns to this repo."
-}
+  if (-not (Gs-HasRemote)) {
+    Gs-Json "Stop" "git-sync: aucun remote configure, checkpoint impossible." ""
+    exit 0
+  }
 
-git add -A
-git diff --cached --quiet
-if ($LASTEXITCODE -ne 0) {
-  # Default: attributed to a bot identity and left unsigned, so auto-commits
-  # stay visibly distinct from the ones you actually wrote. Set
-  # `git config git-sync.identity self` to commit as yourself instead.
-  $signArgs = @("-c", "commit.gpgsign=false")
-  if ((git config --get git-sync.identity) -eq "self") {
-    $signArgs = @()
-  } else {
-    $botName = (git config --get git-sync.botName)
-    if (-not $botName) { $botName = "git-sync bot" }
-    $botEmail = (git config --get git-sync.botEmail)
-    if (-not $botEmail) { $botEmail = "325430966+gitsync-bot@users.noreply.github.com" }
-    $env:GIT_AUTHOR_NAME = $botName
-    $env:GIT_AUTHOR_EMAIL = $botEmail
-    $env:GIT_COMMITTER_NAME = $botName
-    $env:GIT_COMMITTER_EMAIL = $botEmail
+  # Snapshot through an index of our own, so the user's staging area is
+  # neither read nor disturbed.
+  $tmpIndex = [System.IO.Path]::GetTempFileName()
+  Remove-Item $tmpIndex -Force -ErrorAction SilentlyContinue
+  try {
+    $env:GIT_INDEX_FILE = $tmpIndex
+    git read-tree HEAD
+    # See stop-sync.sh: applied as an extra exclude file for this snapshot only,
+    # rather than written into the user's own .gitignore as 1.x did.
+    $excludes = Join-Path $env:CLAUDE_PLUGIN_ROOT "hooks/ignore-patterns.txt"
+    if (Test-Path $excludes) { git -c core.excludesFile="$excludes" add -A } else { git add -A }
+    $tree = (git write-tree).Trim()
+  } finally {
+    Remove-Item Env:\GIT_INDEX_FILE -ErrorAction SilentlyContinue
+    Remove-Item $tmpIndex -Force -ErrorAction SilentlyContinue
   }
-  $trailer = "Committed automatically by git-sync`nhttps://github.com/Thibault-Savenkoff/git-sync"
-  git @signArgs commit -m "WIP: auto-sync $(Get-Date -Format 'yyyy-MM-dd HH:mm')" -m $trailer *> $null
-  if (-not (git remote)) {
-    $msg = "$msg git-sync: committed changes locally (no remote configured, not pushed)."
+
+  $headSha = (git rev-parse HEAD).Trim()
+  $headTree = (git rev-parse "HEAD^{tree}").Trim()
+
+  if ($tree -eq $headTree) {
+    $msg = "git-sync: rien a synchroniser."
   } else {
-    $logFile = Join-Path $repoRoot ".git/git-sync-push-error.log"
-    git push *> $logFile
+    $stat = (git diff --shortstat $headSha $tree 2>$null) -join ""
+    $skipCi = if (Gs-Bool "checkpointCi") { "" } else { " [skip ci]" }
+    $machine = Gs-Machine
+    $body = @"
+sync depuis $machine$skipCi
+
+Etat de travail non committe, pousse automatiquement par git-sync.
+A integrer avec /git-sync:land, jamais a merger tel quel.
+
+Git-Sync-Base: $headSha
+Git-Sync-Machine: $machine
+Git-Sync-Branch: $(Gs-Branch)
+"@
+    $env:GIT_AUTHOR_NAME = "git-sync"; $env:GIT_AUTHOR_EMAIL = "git-sync@localhost"
+    $env:GIT_COMMITTER_NAME = "git-sync"; $env:GIT_COMMITTER_EMAIL = "git-sync@localhost"
+    $ckpt = (git -c commit.gpgsign=false commit-tree $tree -p $headSha -m $body).Trim()
+
+    $lease = Gs-KnownPush $syncBranch
+    $log = Join-Path $repoRoot ".git/git-sync-push-error.log"
+    git push "--force-with-lease=refs/heads/${syncBranch}:${lease}" origin "${ckpt}:refs/heads/$syncBranch" *> $log
     if ($LASTEXITCODE -eq 0) {
-      Remove-Item -Force $logFile -ErrorAction SilentlyContinue
-      $msg = "$msg git-sync: committed and pushed changes."
+      Remove-Item -Force $log -ErrorAction SilentlyContinue
+      Gs-RememberPush $syncBranch $ckpt
+      $msg = "git-sync: checkpoint pousse sur $syncBranch ($stat)."
+    } elseif ((Get-Content $log -Raw -ErrorAction SilentlyContinue) -match "stale info") {
+      $msg = "git-sync: checkpoint refuse -- une autre machine a pousse sur $syncBranch. Rien n'a ete ecrase. Lance /git-sync:land ou resous la divergence a la main."
     } else {
-      $msg = "$msg git-sync: committed changes but push failed -- see .git/git-sync-push-error.log"
+      $msg = "git-sync: push du checkpoint echoue -- voir .git/git-sync-push-error.log"
     }
   }
+} else {
+  . (Join-Path $env:CLAUDE_PLUGIN_ROOT "hooks/legacy-commit.ps1")
 }
 
-# Opt-in project notes: `git config git-sync.notes true`. See stop-sync.sh for
-# why the injection lives on Stop and not on PreCompact or SessionEnd.
-$context = ""
-if ((git config --get git-sync.notes) -eq "true") {
+$notesDefault = if ((Gs-Mode) -eq "checkpoint") { "true" } else { "false" }
+if (Gs-Bool "notes" $notesDefault) {
   $stamp = Join-Path $repoRoot ".git/git-sync-notes-stamp"
-  # ponytail: fixed 30 min; make it git config git-sync.notesInterval if anyone asks.
   $stale = -not (Test-Path $stamp) -or ((Get-Item $stamp).LastWriteTime -lt (Get-Date).AddMinutes(-30))
   if ($stale) {
     New-Item -ItemType File -Path $stamp -Force | Out-Null
-    $context = "git-sync: si quelque chose de durable a ete decide ou construit depuis la derniere mise a jour, invoque la skill git-sync:notes pour rafraichir la section '## Etat courant' de CLAUDE.md avant que ce contexte parte en compaction. Sinon ne touche a rien et n'en parle pas."
+    $context = "git-sync: si quelque chose de durable a ete decide ou construit depuis la derniere mise a jour, invoque la skill git-sync:notes pour rafraichir la section '## Etat courant' de CLAUDE.md. C'est ce fichier qui transporte le pourquoi vers l'autre machine -- le checkpoint ne transporte que le code. Sinon ne touche a rien et n'en parle pas."
   }
 }
 
-$msg = $msg.Trim()
-if ($msg -or $context) {
-  $out = @{ hookEventName = "Stop" }
-  if ($msg) { $out.systemMessage = $msg }
-  if ($context) { $out.additionalContext = $context }
-  @{ hookSpecificOutput = $out } | ConvertTo-Json -Compress
-}
+Gs-Json "Stop" $msg $context
+exit 0

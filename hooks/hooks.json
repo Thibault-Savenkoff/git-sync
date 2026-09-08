@@ -6,10 +6,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if git rev-parse --is-inside-work-tree >/dev/null 2>&1 && [ \"$(git config --get git-sync.disabled)\" != \"true\" ] && [ -z \"$GIT_SYNC_DISABLED\" ]; then git pull --ff-only >/dev/null 2>&1; fi; true",
-            "commandWindows": "if (((git rev-parse --is-inside-work-tree) 2>$null) -and ((git config --get git-sync.disabled) -ne \"true\") -and (-not $env:GIT_SYNC_DISABLED)) { git pull --ff-only *> $null }",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh\"",
+            "commandWindows": "powershell -NoProfile -ExecutionPolicy Bypass -File \"%CLAUDE_PLUGIN_ROOT%\\hooks\\session-start.ps1\"",
             "timeout": 15,
-            "statusMessage": "Syncing repo (git pull)..."
+            "statusMessage": "Recuperation du travail en cours..."
           }
         ]
       }
@@ -22,7 +22,7 @@
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/stop-sync.sh\"",
             "commandWindows": "powershell -NoProfile -ExecutionPolicy Bypass -File \"%CLAUDE_PLUGIN_ROOT%\\hooks\\stop-sync.ps1\"",
             "timeout": 15,
-            "statusMessage": "Syncing repo (commit + push)..."
+            "statusMessage": "Sauvegarde du checkpoint..."
           }
         ]
       }
@@ -35,7 +35,7 @@
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/session-end-archive.sh\"",
             "commandWindows": "powershell -NoProfile -ExecutionPolicy Bypass -File \"%CLAUDE_PLUGIN_ROOT%\\hooks\\session-end-archive.ps1\"",
             "timeout": 10,
-            "statusMessage": "Archiving session transcript..."
+            "statusMessage": "Archivage du transcript..."
           }
         ]
       }

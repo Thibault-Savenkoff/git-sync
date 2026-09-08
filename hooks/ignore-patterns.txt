@@ -54,3 +54,15 @@ out/
 # Archives / temp
 *.tmp
 *.bak
+
+# Credentials -- a net, not a guarantee. A checkpoint is pushed to a remote,
+# so anything matching these never enters the snapshot.
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+*credentials*
+*.kdbx
+.netrc
