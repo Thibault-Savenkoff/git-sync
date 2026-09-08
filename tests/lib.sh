@@ -32,6 +32,7 @@ it() { CURRENT="$1"; printf '  - %s\n' "$1"; }
 
 # new_world -- bare remote + clone A, cd into A. Sets $WORLD, $REMOTE, $A.
 new_world() {
+  skip_unless_shell_available
   WORLD=$(mktemp -d)
   REMOTE="$WORLD/remote.git"
   A="$WORLD/A"
@@ -62,7 +63,29 @@ clone_b() {
 cleanup_world() { [ -n "${WORLD:-}" ] && rm -rf "$WORLD"; cd "$PLUGIN_ROOT" || exit 1; }
 
 # run_stop / run_start -- invoke a hook the way Claude Code does.
-run_stop()  { sh "$PLUGIN_ROOT/hooks/stop-sync.sh" 2>&1; }
-run_start() { sh "$PLUGIN_ROOT/hooks/session-start.sh" 2>&1; }
+#
+# GS_SHELL=pwsh runs the PowerShell hooks instead. Windows is half of what this
+# plugin is for -- a laptop and a desktop are rarely the same OS -- so the two
+# implementations have to face the same cases, not just look alike.
+run_stop() {
+  if [ "${GS_SHELL:-sh}" = "pwsh" ]; then
+    pwsh -NoProfile -File "$PLUGIN_ROOT/hooks/stop-sync.ps1" 2>&1
+  else
+    sh "$PLUGIN_ROOT/hooks/stop-sync.sh" 2>&1
+  fi
+}
+run_start() {
+  if [ "${GS_SHELL:-sh}" = "pwsh" ]; then
+    pwsh -NoProfile -File "$PLUGIN_ROOT/hooks/session-start.ps1" 2>&1
+  else
+    sh "$PLUGIN_ROOT/hooks/session-start.sh" 2>&1
+  fi
+}
+
+skip_unless_shell_available() {
+  if [ "${GS_SHELL:-sh}" = "pwsh" ] && ! command -v pwsh >/dev/null 2>&1; then
+    printf '  (pwsh absent -- cas ignores)\n'; exit 0
+  fi
+}
 
 sync_branch_sha() { git ls-remote "$REMOTE" "refs/heads/$1" 2>/dev/null | cut -f1; }

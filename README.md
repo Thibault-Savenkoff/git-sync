@@ -110,9 +110,18 @@ not rewrite what it did before.
 ## Tests
 
 ```sh
-sh tests/run.sh
+sh tests/run.sh        # both implementations
+sh tests/run.sh sh     # POSIX hooks only, when pwsh is not installed
 ```
 
-The suite builds a real bare remote and two clones per case, and runs the hooks
-against them — a lease that should have been refused or a deletion that failed
-to propagate only shows up against an actual repository.
+The suite builds a real bare remote and one or two clones per case and runs the
+hooks against them — a lease that should have been refused, or a deletion that
+failed to propagate, only shows up against an actual repository.
+
+Every case runs twice, once against the shell hooks and once against the
+PowerShell ones, plus a mixed round trip in both directions: a laptop and a
+desktop are rarely the same OS, so a checkpoint written on one has to be
+readable on the other. `pwsh` missing simply skips those runs.
+
+Measured on a 20,000-file repository, the stop hook takes ~0.6s (shell) and
+~1.4s (PowerShell), against a 15s timeout.
