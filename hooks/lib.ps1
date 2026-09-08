@@ -57,6 +57,39 @@ function Gs-KnownPush([string]$SyncBranch) {
   return ""
 }
 
+function Gs-WorktreeTree {
+  $tmp = [System.IO.Path]::GetTempFileName(); Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+  try {
+    $env:GIT_INDEX_FILE = $tmp
+    git read-tree HEAD 2>$null
+    $ex = Join-Path $env:CLAUDE_PLUGIN_ROOT "hooks/ignore-patterns.txt"
+    if (Test-Path $ex) { git -c core.excludesFile="$ex" add -A 2>$null } else { git add -A 2>$null }
+    return (git write-tree 2>$null).Trim()
+  } finally {
+    Remove-Item Env:\GIT_INDEX_FILE -ErrorAction SilentlyContinue
+    Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+  }
+}
+
+function Gs-MineFile { Join-Path (Gs-RepoRoot) ".git/git-sync-mine" }
+
+function Gs-RememberMine([string]$SyncBranch, [string]$Tree) {
+  $f = Gs-MineFile
+  $lines = @()
+  if (Test-Path $f) { $lines = @(Get-Content $f | Where-Object { $_ -notmatch "^$([regex]::Escape($SyncBranch)) " }) }
+  $lines += "$SyncBranch $Tree"
+  Set-Content -Path $f -Value $lines
+}
+
+function Gs-KnownMine([string]$SyncBranch) {
+  $f = Gs-MineFile
+  if (-not (Test-Path $f)) { return "" }
+  foreach ($line in Get-Content $f) {
+    if ($line -match "^$([regex]::Escape($SyncBranch)) (.+)$") { return $Matches[1].Trim() }
+  }
+  return ""
+}
+
 function Gs-ForgetPush([string]$SyncBranch) {
   $f = Gs-StateFile
   if (-not (Test-Path $f)) { return }

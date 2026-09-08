@@ -41,11 +41,6 @@ if [ -z "$CKPT" ]; then
   exit 0
 fi
 
-# Remember what the remote ref holds right now. Our own next checkpoint pushes
-# with a lease against this value -- without it, a machine that has only ever
-# received checkpoints has no idea what to expect and can never push its own.
-gs_remember_push "$SYNC_BRANCH" "$CKPT"
-
 BASE=$(gs_trailer "$CKPT" Git-Sync-Base)
 MACHINE=$(gs_trailer "$CKPT" Git-Sync-Machine)
 HEAD_SHA=$(git rev-parse HEAD)
@@ -63,10 +58,20 @@ if [ "$BASE" != "$HEAD_SHA" ]; then
   exit 0
 fi
 
-if ! git diff --quiet HEAD 2>/dev/null || [ -n "$(git status --porcelain 2>/dev/null)" ]; then
-  gs_json SessionStart \
-    "git-sync: un checkpoint de $MACHINE attend sur $SYNC_BRANCH, mais ce work tree a des modifications locales. Rien n'a ete applique. Compare avec: git diff HEAD refs/git-sync/$SYNC_BRANCH" ""
-  exit 0
+# A dirty work tree normally means "refuse" -- but there is one case where the
+# dirt is not unique work at all: it is exactly what we ourselves last pushed,
+# and the incoming checkpoint was built on top of it. That is the ordinary
+# laptop/desktop ping-pong, and refusing there strands both machines.
+RESET=""
+if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+  MINE=$(gs_known_mine "$SYNC_BRANCH")
+  if [ -n "$MINE" ] && [ "$MINE" = "$(gs_worktree_tree)" ]; then
+    RESET="--reset"
+  else
+    gs_json SessionStart \
+      "git-sync: un checkpoint de $MACHINE attend sur $SYNC_BRANCH, mais ce work tree a des modifications locales qui ne sont pas dans le dernier checkpoint que tu as pousse. Rien n'a ete applique. Compare avec: git diff HEAD refs/git-sync/$SYNC_BRANCH" ""
+    exit 0
+  fi
 fi
 
 # `git checkout <ckpt> -- .` would be the reflex and would be wrong: it does not
@@ -76,12 +81,26 @@ fi
 # files it added read as untracked and `git diff HEAD` stops mentioning them.
 STAT=$(git diff --stat HEAD "$CKPT" | tail -20)
 
-if ! git read-tree -u -m HEAD "$CKPT" 2>/dev/null; then
+# Two distinct applications, because -m and --reset are mutually exclusive:
+#   clean tree  -> two-way merge against HEAD, which refuses on any conflict
+#   our own dirt -> single-tree reset, discarding changes we have proven are
+#                   already on the remote in a checkpoint we pushed ourselves
+if [ -n "$RESET" ]; then
+  APPLY_OK=$(git read-tree -u --reset "$CKPT" 2>/dev/null && echo yes)
+else
+  APPLY_OK=$(git read-tree -u -m HEAD "$CKPT" 2>/dev/null && echo yes)
+fi
+if [ "$APPLY_OK" != "yes" ]; then
   gs_json SessionStart \
     "git-sync: application du checkpoint de $MACHINE impossible (conflit avec des fichiers locaux). Rien n'a change." ""
   exit 0
 fi
 git reset -q
+# We have taken the incoming work in, so overwriting this checkpoint next time
+# is legitimate. Until that happens the lease stays stale on purpose -- that is
+# what stops a machine that refused the checkpoint from clobbering it.
+gs_remember_push "$SYNC_BRANCH" "$CKPT"
+gs_remember_mine "$SYNC_BRANCH" "$(git rev-parse "$CKPT^{tree}")"
 
 gs_json SessionStart \
   "git-sync: travail de $MACHINE applique depuis $SYNC_BRANCH (non committe)." \

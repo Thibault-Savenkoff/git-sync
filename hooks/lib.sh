@@ -96,6 +96,40 @@ gs_forget_push() {
   mv "$_t" "$_f"
 }
 
+# gs_worktree_tree -- the tree the work tree would produce, computed through an
+# index of our own so the user's staging area is neither read nor disturbed.
+gs_worktree_tree() {
+  _tmp=$(mktemp)
+  GIT_INDEX_FILE="$_tmp" git read-tree HEAD 2>/dev/null
+  _ex="${CLAUDE_PLUGIN_ROOT}/hooks/ignore-patterns.txt"
+  if [ -f "$_ex" ]; then
+    GIT_INDEX_FILE="$_tmp" git -c core.excludesFile="$_ex" add -A 2>/dev/null
+  else
+    GIT_INDEX_FILE="$_tmp" git add -A 2>/dev/null
+  fi
+  GIT_INDEX_FILE="$_tmp" git write-tree 2>/dev/null
+  rm -f "$_tmp"
+}
+
+# gs_remember_mine / gs_known_mine <sync-branch> [tree] -- the tree of the last
+# checkpoint *we* pushed. Distinct from gs_remember_push, which records what the
+# ref holds: this one answers "are my uncommitted changes already safely on the
+# remote?", which is what makes it safe to accept an incoming checkpoint over a
+# dirty work tree.
+gs_remember_mine() {
+  _f="$(gs_repo_root)/.git/git-sync-mine"
+  _t=$(mktemp)
+  if [ -f "$_f" ]; then grep -v "^$1 " "$_f" > "$_t" 2>/dev/null || true; fi
+  printf '%s %s\n' "$1" "$2" >> "$_t"
+  mv "$_t" "$_f"
+}
+
+gs_known_mine() {
+  _f="$(gs_repo_root)/.git/git-sync-mine"
+  [ -f "$_f" ] || return 0
+  sed -n "s|^$1 ||p" "$_f" | head -1
+}
+
 # gs_remote_ref <sync-branch> -- the sha the remote actually holds, "" if none.
 gs_remote_ref() {
   git ls-remote origin "refs/heads/$1" 2>/dev/null | cut -f1 | head -1

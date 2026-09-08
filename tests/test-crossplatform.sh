@@ -45,8 +45,6 @@ for pair in "sh pwsh" "pwsh sh"; do
 
   it "et $FROM le recupere en retour"
   cd "$A"
-  git checkout -q -- . 2>/dev/null; rm -f added.txt
-  git reset -q --hard origin/main
   out=$(start_as "$FROM")
   assert_contains "$(cat file.txt)" "repondu par $TO" "aller-retour complet"
 

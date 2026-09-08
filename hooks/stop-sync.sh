@@ -52,8 +52,21 @@ if [ "$(gs_mode)" = "checkpoint" ]; then
 
   HEAD_SHA=$(git rev-parse HEAD)
   if [ "$TREE" = "$(git rev-parse "HEAD^{tree}")" ]; then
-    # Nothing differs from the last real commit; a checkpoint would say nothing.
+    # Nothing differs from the last real commit, so a checkpoint would say
+    # nothing -- and if one of ours is still out there it is now describing work
+    # that has been committed. Retire it, or every branch ever synced leaves a
+    # dead git-sync/* behind, which is the clutter this whole mode exists to
+    # avoid. The lease makes this safe: it deletes only the exact object we
+    # pushed, never a fresh checkpoint the other machine put there meanwhile.
     MSG="git-sync: rien a synchroniser."
+    OURS=$(gs_known_push "$SYNC_BRANCH")
+    if [ -n "$OURS" ]; then
+      if git push --force-with-lease="refs/heads/$SYNC_BRANCH:$OURS" \
+             origin ":refs/heads/$SYNC_BRANCH" >/dev/null 2>&1; then
+        gs_forget_push "$SYNC_BRANCH"
+        MSG="git-sync: travail committe, checkpoint obsolete retire de $SYNC_BRANCH."
+      fi
+    fi
   else
     STAT=$(git diff --shortstat "$HEAD_SHA" "$TREE" 2>/dev/null || echo "")
     SKIP_CI=" [skip ci]"
@@ -81,6 +94,7 @@ Git-Sync-Branch: $(gs_branch)"
            origin "$CKPT:refs/heads/$SYNC_BRANCH" >"$LOG" 2>&1; then
       rm -f "$LOG"
       gs_remember_push "$SYNC_BRANCH" "$CKPT"
+      gs_remember_mine "$SYNC_BRANCH" "$TREE"
       MSG="git-sync: checkpoint pousse sur $SYNC_BRANCH ($STAT)."
     elif grep -q "stale info" "$LOG" 2>/dev/null; then
       # A refused lease has two very different causes, and telling the user the

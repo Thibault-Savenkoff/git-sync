@@ -49,22 +49,27 @@ it "et le checkpoint de B est intact sur le remote"
 body=$(git fetch -q origin "refs/heads/git-sync/main:refs/probe/x" 2>/dev/null; git log -1 --format=%B refs/probe/x)
 assert_contains "$body" "Git-Sync-Machine: machineB" "proprietaire du checkpoint"
 
-it "B refuse d'appliquer par dessus un work tree sale"
-cd "$B"; git reset -q --hard origin/main; rm -f added.txt
-# A reprend la main normalement : une session demarre (elle apprend l'etat du
-# ref) avant de s'arreter. C'est ce qui lui redonne un lease valide.
-cd "$A"; git reset -q --hard origin/main; rm -f added.txt
-run_start >/dev/null
-printf 'depuis A a nouveau\n' >> file.txt
-out=$(run_stop)
-assert_contains "$out" "checkpoint pousse" "A a bien repris la main"
-cd "$B" && printf 'travail local de B\n' >> file.txt
+cleanup_world
+
+# Les deux refus se testent sur un monde neuf : les cas precedents laissent
+# volontairement A et B en divergence, ce qui masquerait ce qu'on veut voir.
+new_world
+clone_b
+
+it "B refuse d'appliquer par dessus des modifications qui ne sont pas les siennes"
+# La distinction qui compte : du travail deja pousse par soi-meme peut etre
+# ecrase sans rien perdre, du travail jamais pousse ne le peut pas.
+printf 'travail de A\n' >> file.txt
+run_stop >/dev/null
+cd "$B"; git pull -q --ff-only 2>/dev/null
+printf 'travail local jamais pousse\n' >> file.txt
 out=$(run_start)
 assert_contains "$out" "modifications locales" "refus"
-assert_contains "$(cat file.txt)" "travail local de B" "le travail de B est intact"
+assert_contains "$(cat file.txt)" "travail local jamais pousse" "le travail de B est intact"
+assert_not_contains "$(cat file.txt)" "travail de A" "rien n'a ete applique"
 
 it "B refuse quand les bases divergent"
-git checkout -q -- .
+git checkout -q -- .; git clean -qfd 2>/dev/null
 git commit -q --allow-empty -m "commit local de B"
 out=$(run_start)
 assert_contains "$out" "part d'un autre commit" "refus"

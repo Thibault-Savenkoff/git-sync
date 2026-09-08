@@ -25,35 +25,50 @@ if (-not $ckpt) {
 }
 $ckpt = $ckpt.Trim()
 
-Gs-RememberPush $syncBranch $ckpt
-
 $base = Gs-Trailer $ckpt "Git-Sync-Base"
 $machine = Gs-Trailer $ckpt "Git-Sync-Machine"
 $headSha = (git rev-parse HEAD).Trim()
 
-if ($machine -eq (Gs-Machine)) { exit 0 }
-if ((git rev-parse "$ckpt^{tree}").Trim() -eq (git rev-parse "HEAD^{tree}").Trim()) { exit 0 }
+# Our own checkpoint, or one already applied: nothing to take in, but we stay
+# entitled to overwrite it, so keep the lease current.
+if ($machine -eq (Gs-Machine)) { Gs-RememberPush $syncBranch $ckpt; exit 0 }
+if ((git rev-parse "$ckpt^{tree}").Trim() -eq (git rev-parse "HEAD^{tree}").Trim()) {
+  Gs-RememberPush $syncBranch $ckpt; exit 0
+}
 
 if ($base -ne $headSha) {
   Gs-Json "SessionStart" "git-sync: un checkpoint de $machine existe sur $syncBranch mais part d'un autre commit ($base vs $headSha). Rien n'a ete applique -- inspecte-le avec: git diff HEAD refs/git-sync/$syncBranch" ""
   exit 0
 }
 
+# See session-start.sh: dirt that is exactly what we ourselves last pushed is
+# not unique work, and refusing there strands both machines in the ordinary
+# laptop/desktop ping-pong.
+$reset = $false
 if ((git status --porcelain) -join "") {
-  Gs-Json "SessionStart" "git-sync: un checkpoint de $machine attend sur $syncBranch, mais ce work tree a des modifications locales. Rien n'a ete applique. Compare avec: git diff HEAD refs/git-sync/$syncBranch" ""
-  exit 0
+  $mine = Gs-KnownMine $syncBranch
+  if ($mine -and $mine -eq (Gs-WorktreeTree)) {
+    $reset = $true
+  } else {
+    Gs-Json "SessionStart" "git-sync: un checkpoint de $machine attend sur $syncBranch, mais ce work tree a des modifications locales qui ne sont pas dans le dernier checkpoint que tu as pousse. Rien n'a ete applique. Compare avec: git diff HEAD refs/git-sync/$syncBranch" ""
+    exit 0
+  }
 }
 
 # Computed before applying: afterwards, files the checkpoint added read as
 # untracked and `git diff HEAD` stops mentioning them.
 $stat = ((git diff --stat HEAD $ckpt) | Select-Object -Last 20) -join "`n"
 
-git read-tree -u -m HEAD $ckpt *> $null
+# -m and --reset are mutually exclusive, so these are two distinct calls.
+if ($reset) { git read-tree -u --reset $ckpt *> $null }
+else        { git read-tree -u -m HEAD $ckpt *> $null }
 if ($LASTEXITCODE -ne 0) {
   Gs-Json "SessionStart" "git-sync: application du checkpoint de $machine impossible (conflit avec des fichiers locaux). Rien n'a change." ""
   exit 0
 }
 git reset -q
+Gs-RememberPush $syncBranch $ckpt
+Gs-RememberMine $syncBranch (git rev-parse "$ckpt^{tree}").Trim()
 
 Gs-Json "SessionStart" "git-sync: travail de $machine applique depuis $syncBranch (non committe)." @"
 git-sync a restaure le travail en cours de la machine $machine. Ces modifications sont dans le work tree, non committees, et ne sont pas de toi :

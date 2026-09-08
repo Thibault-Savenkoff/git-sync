@@ -40,7 +40,18 @@ if ((Gs-Mode) -eq "checkpoint") {
   $headTree = (git rev-parse "HEAD^{tree}").Trim()
 
   if ($tree -eq $headTree) {
+    # See stop-sync.sh: retire our own now-meaningless checkpoint rather than
+    # leave a dead git-sync/* branch behind. The lease keeps it from touching a
+    # fresh checkpoint the other machine pushed meanwhile.
     $msg = "git-sync: rien a synchroniser."
+    $ours = Gs-KnownPush $syncBranch
+    if ($ours) {
+      git push "--force-with-lease=refs/heads/${syncBranch}:${ours}" origin ":refs/heads/$syncBranch" *> $null
+      if ($LASTEXITCODE -eq 0) {
+        Gs-ForgetPush $syncBranch
+        $msg = "git-sync: travail committe, checkpoint obsolete retire de $syncBranch."
+      }
+    }
   } else {
     $stat = (git diff --shortstat $headSha $tree 2>$null) -join ""
     $skipCi = if (Gs-Bool "checkpointCi") { "" } else { " [skip ci]" }
@@ -65,6 +76,7 @@ Git-Sync-Branch: $(Gs-Branch)
     if ($LASTEXITCODE -eq 0) {
       Remove-Item -Force $log -ErrorAction SilentlyContinue
       Gs-RememberPush $syncBranch $ckpt
+      Gs-RememberMine $syncBranch $tree
       $msg = "git-sync: checkpoint pousse sur $syncBranch ($stat)."
     } elseif ((Get-Content $log -Raw -ErrorAction SilentlyContinue) -match "stale info") {
       # See stop-sync.sh: a refused lease has two very different causes, and the
