@@ -19,6 +19,9 @@ if ((Gs-Mode) -eq "checkpoint") {
     exit 0
   }
 
+  $pruned = Gs-PruneOrphans
+  if ($pruned) { $msg = "git-sync: checkpoints retires pour des branches disparues ($pruned)." }
+
   # Snapshot through an index of our own, so the user's staging area is
   # neither read nor disturbed.
   $tmpIndex = [System.IO.Path]::GetTempFileName()
@@ -43,7 +46,7 @@ if ((Gs-Mode) -eq "checkpoint") {
     # See stop-sync.sh: retire our own now-meaningless checkpoint rather than
     # leave a dead git-sync/* branch behind. The lease keeps it from touching a
     # fresh checkpoint the other machine pushed meanwhile.
-    $msg = "git-sync: rien a synchroniser."
+    $msg = (@($msg, "git-sync: rien a synchroniser.") | Where-Object { $_ }) -join " "
     $ours = Gs-KnownPush $syncBranch
     if ($ours) {
       git push "--force-with-lease=refs/heads/${syncBranch}:${ours}" origin ":refs/heads/$syncBranch" *> $null
@@ -77,7 +80,7 @@ Git-Sync-Branch: $(Gs-Branch)
       Remove-Item -Force $log -ErrorAction SilentlyContinue
       Gs-RememberPush $syncBranch $ckpt
       Gs-RememberMine $syncBranch $tree
-      $msg = "git-sync: checkpoint pousse sur $syncBranch ($stat)."
+      $msg = (@($msg, "git-sync: checkpoint pousse sur $syncBranch ($stat).") | Where-Object { $_ }) -join " "
     } elseif ((Get-Content $log -Raw -ErrorAction SilentlyContinue) -match "stale info") {
       # See stop-sync.sh: a refused lease has two very different causes, and the
       # remote is the only thing that can tell them apart.

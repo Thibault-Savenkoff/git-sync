@@ -9,7 +9,7 @@ if ((Gs-Mode) -ne "checkpoint") { git pull --ff-only *> $null; exit 0 }
 
 $branch = Gs-Branch
 if (-not $branch) { exit 0 }
-$syncBranch = "git-sync/$branch"
+$syncBranch = Gs-SyncBranch
 
 git pull --ff-only *> $null
 

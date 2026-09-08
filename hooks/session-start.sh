@@ -22,7 +22,7 @@ fi
 
 BRANCH=$(gs_branch || true)
 [ -n "$BRANCH" ] || exit 0
-SYNC_BRANCH="git-sync/$BRANCH"
+SYNC_BRANCH=$(gs_sync_branch)
 
 git pull --ff-only >/dev/null 2>&1 || true
 

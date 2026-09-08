@@ -31,12 +31,22 @@ gs_repo_root() { git rev-parse --show-toplevel 2>/dev/null; }
 # gs_branch -- the checked-out branch, empty on a detached HEAD.
 gs_branch() { git symbolic-ref --quiet --short HEAD 2>/dev/null; }
 
+# gs_encode / gs_decode -- branch name <-> one safe ref path segment.
+#
+# Git refuses refs/heads/a/b while refs/heads/a exists, so deriving the
+# checkpoint ref straight from the branch name makes "feat" and "feat/sub"
+# mutually exclusive: whichever comes second can never sync, and says only that
+# the push failed. Percent-encoding the separator keeps every checkpoint at
+# exactly one level under git-sync/, where no such conflict can arise.
+gs_encode() { printf '%s' "$1" | sed 's/%/%25/g; s|/|%2F|g'; }
+gs_decode() { printf '%s' "$1" | sed 's|%2F|/|g; s/%25/%/g'; }
+
 # gs_sync_branch -- where this branch's checkpoint lives. Empty when there is
 # no branch to hang it off (detached HEAD), which disables checkpoint mode.
 gs_sync_branch() {
   _b=$(gs_branch) || return 1
   [ -n "$_b" ] || return 1
-  printf 'git-sync/%s' "$_b"
+  printf 'git-sync/%s' "$(gs_encode "$_b")"
 }
 
 # gs_mode -- "checkpoint" (default) or "commit" (the pre-2.0 behaviour).
@@ -133,4 +143,28 @@ gs_known_mine() {
 # gs_remote_ref <sync-branch> -- the sha the remote actually holds, "" if none.
 gs_remote_ref() {
   git ls-remote origin "refs/heads/$1" 2>/dev/null | cut -f1 | head -1
+}
+
+# gs_prune_orphans -- drop checkpoints whose branch no longer exists locally.
+#
+# Renaming or deleting a branch moves the target out from under a checkpoint we
+# pushed, and nothing else would ever clean it up: it would sit on the remote
+# forever. Only refs we recorded pushing are considered, and each deletion
+# carries its lease, so a checkpoint the other machine owns is never touched.
+gs_prune_orphans() {
+  _f="$(gs_repo_root)/.git/git-sync-pushed"
+  [ -f "$_f" ] || return 0
+  _pruned=""
+  while read -r _sb _sha; do
+    [ -n "$_sb" ] || continue
+    case "$_sb" in git-sync/*) ;; *) continue ;; esac
+    _name=$(gs_decode "${_sb#git-sync/}")
+    git show-ref --verify --quiet "refs/heads/$_name" && continue
+    if git push --force-with-lease="refs/heads/$_sb:$_sha" \
+           origin ":refs/heads/$_sb" >/dev/null 2>&1; then
+      _pruned="${_pruned:+$_pruned }$_name"
+    fi
+    gs_forget_push "$_sb"
+  done < "$_f"
+  printf '%s' "$_pruned"
 }

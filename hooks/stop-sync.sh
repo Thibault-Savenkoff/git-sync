@@ -30,6 +30,11 @@ if [ "$(gs_mode)" = "checkpoint" ]; then
     exit 0
   fi
 
+  PRUNED=$(gs_prune_orphans)
+  if [ -n "$PRUNED" ]; then
+    MSG="git-sync: checkpoints retires pour des branches disparues ($PRUNED)."
+  fi
+
   # Snapshot the work tree through an index of our own, so the user's staged
   # changes are neither read nor disturbed.
   TMP_INDEX=$(mktemp)
@@ -58,13 +63,13 @@ if [ "$(gs_mode)" = "checkpoint" ]; then
     # dead git-sync/* behind, which is the clutter this whole mode exists to
     # avoid. The lease makes this safe: it deletes only the exact object we
     # pushed, never a fresh checkpoint the other machine put there meanwhile.
-    MSG="git-sync: rien a synchroniser."
+    MSG="${MSG:+$MSG }git-sync: rien a synchroniser."
     OURS=$(gs_known_push "$SYNC_BRANCH")
     if [ -n "$OURS" ]; then
       if git push --force-with-lease="refs/heads/$SYNC_BRANCH:$OURS" \
              origin ":refs/heads/$SYNC_BRANCH" >/dev/null 2>&1; then
         gs_forget_push "$SYNC_BRANCH"
-        MSG="git-sync: travail committe, checkpoint obsolete retire de $SYNC_BRANCH."
+        MSG="${MSG% }git-sync: travail committe, checkpoint obsolete retire de $SYNC_BRANCH."
       fi
     fi
   else
@@ -95,7 +100,7 @@ Git-Sync-Branch: $(gs_branch)"
       rm -f "$LOG"
       gs_remember_push "$SYNC_BRANCH" "$CKPT"
       gs_remember_mine "$SYNC_BRANCH" "$TREE"
-      MSG="git-sync: checkpoint pousse sur $SYNC_BRANCH ($STAT)."
+      MSG="${MSG:+$MSG }git-sync: checkpoint pousse sur $SYNC_BRANCH ($STAT)."
     elif grep -q "stale info" "$LOG" 2>/dev/null; then
       # A refused lease has two very different causes, and telling the user the
       # wrong one is worse than saying nothing. Ask the remote which it is --

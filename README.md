@@ -93,10 +93,20 @@ to you alone — but "alone" still means two machines, so every push carries a
 push is **refused** and nothing is overwritten; git-sync says so and leaves the
 resolution to you.
 
-On the receiving side, three separate guards each refuse rather than guess: a
-checkpoint is not applied if it came from this same machine, if it is based on a
-different commit than local `HEAD`, or if the work tree has local modifications.
-Silently overwriting a work tree is the one failure that loses work outright.
+On the receiving side the guards refuse rather than guess: a checkpoint is not
+applied if it came from this same machine, if it is based on a different commit
+than local `HEAD`, or if the work tree holds modifications that are not already
+in a checkpoint you pushed yourself. That last exception is what makes the
+ordinary ping-pong work — coming back to the laptop, its dirty tree *is* what it
+last pushed, and the incoming checkpoint was built on top of it — while still
+refusing to touch work that has never left the machine. A machine that refused
+an incoming checkpoint does not get to overwrite it either: the lease is
+recorded when work is taken in, not when it is merely seen.
+
+Checkpoints clean up after themselves. One whose content has since been
+committed is retired, and so is one whose branch was renamed or deleted —
+otherwise every branch you ever synced would leave a dead `git-sync/*` behind,
+which is exactly the clutter this mode exists to avoid.
 
 ## Upgrading from 1.x
 
