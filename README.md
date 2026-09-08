@@ -1,35 +1,51 @@
 # git-sync
 
-Claude Code plugin that keeps a git repo in sync automatically, so projects
-stay up to date across machines without manual `git pull`/`push`.
+Claude Code plugin that carries work in progress between your machines — start
+something on the laptop, keep going on the desktop — **without leaving
+`WIP: auto-sync` commits in the project's history**.
 
 Repo: <https://github.com/Thibault-Savenkoff/git-sync>
 
+## The idea
+
+Moving work between machines and writing history are two different jobs. They
+have different lifetimes, different audiences, and different standards. The
+usual auto-commit plugin conflates them: it borrows the project's history as a
+transport and leaves its litter behind.
+
+git-sync separates them.
+
+- **Transport** — on session stop, your work tree is pushed to a throwaway
+  branch `git-sync/<branch>`. It is *not* committed: the commit object is built
+  with plumbing against a temporary index, so your `HEAD`, your staged changes
+  and your work tree are left exactly as you had them. The branch carries a
+  single checkpoint, overwritten each time, so it never grows.
+- **Arrival** — on session start, the other machine applies that checkpoint into
+  its work tree, still uncommitted, and tells Claude what changed and where it
+  came from.
+- **History** — `/git-sync:land` is the one place anything enters your branch.
+  Claude reads the diff, proposes a message (or a split into several commits
+  when the diff covers unrelated subjects), you approve, it commits.
+
+`main` never sees a checkpoint. Your history contains only commits you approved.
+
 ## What it does
 
-- **On session start** (startup, resume, clear, or compact): runs
-  `git pull --ff-only` if the current directory is a git repo.
-- **On session stop**: stages all changes, and if there's anything staged,
-  commits with message `WIP: auto-sync <date> <time>` and pushes.
+- **On session start**: fast-forward pull, then apply the other machine's
+  checkpoint if there is one — and refuse, loudly, if the work tree is dirty or
+  the histories have diverged. It never overwrites local work.
+- **On session stop**: push a checkpoint of the work tree. `[skip ci]` by
+  default, so intermediate states don't burn CI minutes.
+- **`/git-sync:land`**: turn the checkpoint into reviewed commits, then delete it.
 - **Project notes**: the `git-sync:notes` skill writes an `## État courant`
-  section into the repo's `CLAUDE.md` — decisions and why, what's in flight,
-  traps hit. `CLAUDE.md` is reloaded automatically at every session start, and
-  the sync hooks commit and push it like anything else, so a `/compact`, a
-  `/clear`, or a lost session doesn't take the project's state with it.
-  Ask for it ("fais un compte rendu"), or let Claude reach for it after a
-  milestone lands. Set `git config git-sync.notes true` to also get a periodic
-  nudge on session stop, at most every 30 minutes.
-- **Transcript archive** (opt-in): on session end, copies the session
-  transcript to `~/.claude/git-sync-sessions/`, for the crash that beats the
-  notes to it. Kept 30 days, mode `600`, and deliberately **outside** the work
-  tree — a transcript holds whatever was read that session, so it is never
-  staged and never pushed. `git-sync:notes` can then reconstruct a write-up
-  from one of those archives, for the session that died before writing
-  anything down.
-
-Auto-commits are attributed to a `git-sync bot` identity and made without a
-signature, so they stay easy to tell apart from the commits you wrote
-yourself -- on GitHub, yours keep their "Verified" badge and these don't.
+  section into `CLAUDE.md`. This matters more than it looks: **a checkpoint
+  carries code, `CLAUDE.md` carries the reasoning.** It is reloaded automatically
+  at every session start, so the other machine gets the decisions and the traps,
+  not just a diff. On by default in checkpoint mode.
+- **Transcript archive** (opt-in): on session end, copies the session transcript
+  to `~/.claude/git-sync-sessions/`. Kept 30 days, mode `600`, deliberately
+  **outside** the work tree — a transcript holds whatever was read that session,
+  so it is never staged and never pushed.
 
 Both hooks are no-ops outside a git repo, and fail silently (15s timeout) so
 they never block a session.
@@ -43,43 +59,60 @@ they never block a session.
 
 ## Configuration
 
-Run `/git-sync:config` in Claude Code to see the current settings and change
-them. Everything lives in the repo's `.git/config`, so it is per-repo, local
-to your machine, and never committed.
+Run `/git-sync:config` to see and change the settings. Everything lives in the
+repo's `.git/config`, so it is per-repo, local to your machine, never committed.
 
 | Setting | Default | What it does |
 | --- | --- | --- |
+| `git-sync.mode` | `checkpoint` | `commit` restores the pre-2.0 behaviour: auto-commit onto the current branch |
 | `git-sync.disabled` | `false` | `true` turns both hooks off for this repo |
-| `git-sync.identity` | `bot` | `self` commits under your own name, signed if you sign |
-| `git-sync.botName` | `git-sync bot` | Author name used in bot mode |
-| `git-sync.botEmail` | the plugin's machine account | Author email used in bot mode |
-| `git-sync.notes` | `false` | `true` nudges Claude to refresh `CLAUDE.md` on session stop |
+| `git-sync.machine` | the hostname | Name shown for this machine in checkpoints |
+| `git-sync.checkpointCi` | `false` | `true` drops `[skip ci]`, so CI runs on checkpoints |
+| `git-sync.notes` | on in checkpoint mode | Nudge Claude to refresh `CLAUDE.md` on session stop |
 | `git-sync.archive` | `false` | `true` archives session transcripts locally |
+| `git-sync.identity` | `bot` | Commit mode only: `self` commits under your own name |
 
 ```sh
-# Don't auto-commit this repo at all
-git config git-sync.disabled true
-
 # Skip git-sync for one session only (not a stored setting)
 GIT_SYNC_DISABLED=1 claude
 
-# Auto-commit under your own name instead of the bot
-git config git-sync.identity self
+# Give this machine a readable name
+git config git-sync.machine "portable"
 
-# Nudge Claude to refresh CLAUDE.md's "Etat courant" (at most every 30 min).
-# The git-sync:notes skill works without this -- the setting only adds the nudge.
-git config git-sync.notes true
-
-# Archive session transcripts to ~/.claude/git-sync-sessions (local only)
-git config git-sync.archive true
+# Let CI run on checkpoints too
+git config git-sync.checkpointCi true
 ```
 
 Undo any of them with `git config --unset git-sync.<name>`.
 
-## Notes
+## Safety
 
-- Auto-commits use a generic `WIP: auto-sync` message — intended for
-  personal/scratch repos, not for shared branches where commit history
-  matters.
-- Pull uses `--ff-only`, so it won't clobber local changes with a merge; it
-  simply skips if a fast-forward isn't possible.
+The checkpoint is force-pushed, which is safe only because that branch belongs
+to you alone — but "alone" still means two machines, so every push carries a
+`--force-with-lease`. If the other machine pushed while you were working, your
+push is **refused** and nothing is overwritten; git-sync says so and leaves the
+resolution to you.
+
+On the receiving side, three separate guards each refuse rather than guess: a
+checkpoint is not applied if it came from this same machine, if it is based on a
+different commit than local `HEAD`, or if the work tree has local modifications.
+Silently overwriting a work tree is the one failure that loses work outright.
+
+## Upgrading from 1.x
+
+Checkpoint mode is the new default, and it is a breaking change: sessions stop
+producing commits. If you actually want the old behaviour on a given repo —
+a scratch repo where history is noise anyway — set `git config git-sync.mode commit`.
+
+Any `WIP: auto-sync` commits already in your history stay there; git-sync does
+not rewrite what it did before.
+
+## Tests
+
+```sh
+sh tests/run.sh
+```
+
+The suite builds a real bare remote and two clones per case, and runs the hooks
+against them — a lease that should have been refused or a deletion that failed
+to propagate only shows up against an actual repository.

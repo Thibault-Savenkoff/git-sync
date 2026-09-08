@@ -112,3 +112,6 @@ out/
 # Archives / temp
 *.tmp
 *.bak
+
+# git-sync's own local state
+.git-sync-*
