@@ -17,7 +17,12 @@ git pull --ff-only *> $null
 # is never a fast-forward.
 git fetch -q origin "+refs/heads/${syncBranch}:refs/git-sync/$syncBranch" *> $null
 $ckpt = (git rev-parse -q --verify "refs/git-sync/$syncBranch" 2>$null)
-if (-not $ckpt) { exit 0 }
+if (-not $ckpt) {
+  # Nothing on the remote. A lease we still hold means the checkpoint was landed
+  # and deleted elsewhere -- forget it rather than deadlock at the next push.
+  if (Gs-KnownPush $syncBranch) { Gs-ForgetPush $syncBranch }
+  exit 0
+}
 $ckpt = $ckpt.Trim()
 
 Gs-RememberPush $syncBranch $ckpt

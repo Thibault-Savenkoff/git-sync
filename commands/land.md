@@ -47,8 +47,14 @@ entre sans que l'utilisateur ait valide le message.
 
 6. **Committe** par chemins (`git add <fichiers>` puis `git commit`), pousse la
    branche, puis supprime le checkpoint devenu inutile :
-   `git push origin --delete git-sync/<branche>` et
-   `rm -f .git/git-sync-pushed`.
+   `git push origin --delete git-sync/<branche>`. Ne supprime pas
+   `.git/git-sync-pushed` en entier : il porte l'etat de toutes les branches.
+   Les hooks nettoient d'eux-memes la ligne devenue obsolete au demarrage
+   suivant, donc il n'y a rien a faire de plus ici.
+
+7. **Dis a l'utilisateur d'aller sur l'autre machine.** Elle detient encore ce
+   travail non committe et ignore qu'il vient d'atterrir. Sa prochaine session
+   le lui signalera, mais un `git pull` de sa part evite la confusion.
 
 ## Regles
 

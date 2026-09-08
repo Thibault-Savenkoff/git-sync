@@ -30,8 +30,16 @@ git pull --ff-only >/dev/null 2>&1 || true
 # is never a fast-forward. Without it the fetch is rejected and this machine
 # quietly stops seeing anything after the very first checkpoint.
 git fetch -q origin "+refs/heads/$SYNC_BRANCH:refs/git-sync/$SYNC_BRANCH" 2>/dev/null || exit 0
-CKPT=$(git rev-parse -q --verify "refs/git-sync/$SYNC_BRANCH" 2>/dev/null) || exit 0
-[ -n "$CKPT" ] || exit 0
+CKPT=$(git rev-parse -q --verify "refs/git-sync/$SYNC_BRANCH" 2>/dev/null) || CKPT=""
+if [ -z "$CKPT" ]; then
+  # Nothing on the remote. If we still hold a lease for it, the checkpoint was
+  # landed and deleted elsewhere -- forget it now rather than deadlock at the
+  # next push.
+  if [ -n "$(gs_known_push "$SYNC_BRANCH")" ]; then
+    gs_forget_push "$SYNC_BRANCH"
+  fi
+  exit 0
+fi
 
 # Remember what the remote ref holds right now. Our own next checkpoint pushes
 # with a lease against this value -- without it, a machine that has only ever

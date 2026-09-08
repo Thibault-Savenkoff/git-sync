@@ -57,6 +57,19 @@ function Gs-KnownPush([string]$SyncBranch) {
   return ""
 }
 
+function Gs-ForgetPush([string]$SyncBranch) {
+  $f = Gs-StateFile
+  if (-not (Test-Path $f)) { return }
+  $lines = @(Get-Content $f | Where-Object { $_ -notmatch "^$([regex]::Escape($SyncBranch)) " })
+  Set-Content -Path $f -Value $lines
+}
+
+function Gs-RemoteRef([string]$SyncBranch) {
+  $line = (git ls-remote origin "refs/heads/$SyncBranch" 2>$null | Select-Object -First 1)
+  if (-not $line) { return "" }
+  return ($line -split "\s+")[0]
+}
+
 function Gs-Json([string]$Event, [string]$Message, [string]$Context) {
   if ([string]::IsNullOrWhiteSpace($Message) -and [string]::IsNullOrWhiteSpace($Context)) { return }
   $out = @{ hookEventName = $Event }

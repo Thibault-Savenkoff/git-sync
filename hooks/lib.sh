@@ -84,3 +84,19 @@ gs_known_push() {
   [ -f "$_f" ] || return 0
   sed -n "s|^$1 ||p" "$_f" | head -1
 }
+
+# gs_forget_push <sync-branch> -- drop our record of that ref. Used when the
+# checkpoint is gone from the remote: keeping a lease on a sha nobody holds any
+# more makes every future push fail forever.
+gs_forget_push() {
+  _f="$(gs_repo_root)/.git/git-sync-pushed"
+  [ -f "$_f" ] || return 0
+  _t=$(mktemp)
+  grep -v "^$1 " "$_f" > "$_t" 2>/dev/null || true
+  mv "$_t" "$_f"
+}
+
+# gs_remote_ref <sync-branch> -- the sha the remote actually holds, "" if none.
+gs_remote_ref() {
+  git ls-remote origin "refs/heads/$1" 2>/dev/null | cut -f1 | head -1
+}

@@ -67,7 +67,14 @@ Git-Sync-Branch: $(Gs-Branch)
       Gs-RememberPush $syncBranch $ckpt
       $msg = "git-sync: checkpoint pousse sur $syncBranch ($stat)."
     } elseif ((Get-Content $log -Raw -ErrorAction SilentlyContinue) -match "stale info") {
-      $msg = "git-sync: checkpoint refuse -- une autre machine a pousse sur $syncBranch. Rien n'a ete ecrase. Lance /git-sync:land ou resous la divergence a la main."
+      # See stop-sync.sh: a refused lease has two very different causes, and the
+      # remote is the only thing that can tell them apart.
+      if (-not (Gs-RemoteRef $syncBranch)) {
+        Gs-ForgetPush $syncBranch
+        $msg = "git-sync: le checkpoint de $syncBranch a ete integre puis supprime depuis une autre machine. Rien n'a ete pousse cette fois-ci -- verifie avec 'git pull' que ton travail local n'est pas deja dans l'historique, puis relance une session."
+      } else {
+        $msg = "git-sync: checkpoint refuse -- une autre machine a pousse sur $syncBranch. Rien n'a ete ecrase. Lance /git-sync:land ou resous la divergence a la main."
+      }
     } else {
       $msg = "git-sync: push du checkpoint echoue -- voir .git/git-sync-push-error.log"
     }

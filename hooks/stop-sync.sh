@@ -83,7 +83,18 @@ Git-Sync-Branch: $(gs_branch)"
       gs_remember_push "$SYNC_BRANCH" "$CKPT"
       MSG="git-sync: checkpoint pousse sur $SYNC_BRANCH ($STAT)."
     elif grep -q "stale info" "$LOG" 2>/dev/null; then
-      MSG="git-sync: checkpoint refuse -- une autre machine a pousse sur $SYNC_BRANCH. Rien n'a ete ecrase. Lance /git-sync:land ou resous la divergence a la main."
+      # A refused lease has two very different causes, and telling the user the
+      # wrong one is worse than saying nothing. Ask the remote which it is --
+      # one extra round trip, only ever on the error path.
+      REMOTE_SHA=$(gs_remote_ref "$SYNC_BRANCH")
+      if [ -z "$REMOTE_SHA" ]; then
+        # The checkpoint is gone: /git-sync:land committed its content and
+        # deleted it. Holding the old lease would block every future push.
+        gs_forget_push "$SYNC_BRANCH"
+        MSG="git-sync: le checkpoint de $SYNC_BRANCH a ete integre puis supprime depuis une autre machine. Rien n'a ete pousse cette fois-ci -- verifie avec 'git pull' que ton travail local n'est pas deja dans l'historique, puis relance une session."
+      else
+        MSG="git-sync: checkpoint refuse -- une autre machine a pousse sur $SYNC_BRANCH. Rien n'a ete ecrase. Lance /git-sync:land ou resous la divergence a la main."
+      fi
     else
       MSG="git-sync: push du checkpoint echoue -- voir .git/git-sync-push-error.log"
     fi
