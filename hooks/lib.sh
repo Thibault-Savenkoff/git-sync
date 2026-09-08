@@ -57,7 +57,28 @@ gs_machine() { gs_config machine "$(hostname 2>/dev/null || echo unknown)"; }
 # gs_head_tree -- the tree of HEAD, empty in a repo with no commits yet.
 gs_head_tree() { git rev-parse -q --verify "HEAD^{tree}" 2>/dev/null || true; }
 
-gs_has_remote() { [ -n "$(git remote 2>/dev/null)" ]; }
+gs_has_remote() { [ -n "$(gs_remote)" ]; }
+
+# gs_remote -- which remote to sync against. "origin" was hardcoded, which left
+# the plugin silently inoperative on any repo whose remote is named otherwise --
+# and all the user saw was that the push had failed. Preference order: the
+# branch's own upstream, then origin, then the only remote if there is just one.
+gs_remote() {
+  _b=$(gs_branch)
+  if [ -n "$_b" ]; then
+    _r=$(git config --get "branch.$_b.remote" 2>/dev/null || true)
+    if [ -n "$_r" ]; then printf '%s' "$_r"; return 0; fi
+  fi
+  _all=$(git remote 2>/dev/null)
+  case "
+$_all
+" in *"
+origin
+"*) printf 'origin'; return 0 ;; esac
+  if [ "$(printf '%s\n' "$_all" | grep -c .)" = "1" ]; then
+    printf '%s' "$_all"
+  fi
+}
 
 # gs_trailer <commit> <key> -- read one trailer out of a commit message.
 gs_trailer() {
@@ -106,20 +127,51 @@ gs_forget_push() {
   mv "$_t" "$_f"
 }
 
-# gs_worktree_tree -- the tree the work tree would produce, computed through an
+# gs_snapshot_tree -- the tree the work tree would produce, computed through an
 # index of our own so the user's staging area is neither read nor disturbed.
-gs_worktree_tree() {
+#
+# The stop hook and the ping-pong safety check both need this, and they must
+# agree exactly: the check asks "is my dirty tree the one I already pushed?",
+# which is only meaningful if both sides build the tree the same way. Hence one
+# function, not two similar blocks.
+#
+# Sets GS_TREE and GS_SUBMODULES rather than printing: a command substitution
+# would run the whole thing in a subshell and drop GS_SUBMODULES on the floor.
+#
+# GS_SUBMODULES lists the submodule paths whose checkout has moved. Their
+# gitlinks are pinned back to HEAD, because the commit they point at lives only
+# in this machine's submodule clone: shipping it would promise the other machine
+# something it can never fetch.
+gs_snapshot_tree() {
+  GS_SUBMODULES=""
   _tmp=$(mktemp)
-  GIT_INDEX_FILE="$_tmp" git read-tree HEAD 2>/dev/null
+  GIT_INDEX_FILE="$_tmp"; export GIT_INDEX_FILE
+  git read-tree HEAD 2>/dev/null
   _ex="${CLAUDE_PLUGIN_ROOT}/hooks/ignore-patterns.txt"
   if [ -f "$_ex" ]; then
-    GIT_INDEX_FILE="$_tmp" git -c core.excludesFile="$_ex" add -A 2>/dev/null
+    git -c core.excludesFile="$_ex" add -A 2>/dev/null
   else
-    GIT_INDEX_FILE="$_tmp" git add -A 2>/dev/null
+    git add -A 2>/dev/null
   fi
-  GIT_INDEX_FILE="$_tmp" git write-tree 2>/dev/null
+  for _p in $(git ls-files -s 2>/dev/null | awk '$1 == "160000" { print $4 }'); do
+    _head=$(git rev-parse -q --verify "HEAD:$_p" 2>/dev/null || true)
+    _now=$(git ls-files -s -- "$_p" 2>/dev/null | awk '{print $2}')
+    [ "$_head" = "$_now" ] && continue
+    GS_SUBMODULES="${GS_SUBMODULES:+$GS_SUBMODULES }$_p"
+    if [ -n "$_head" ]; then
+      git update-index --cacheinfo "160000,$_head,$_p" 2>/dev/null
+    else
+      git update-index --force-remove "$_p" 2>/dev/null
+    fi
+  done
+  GS_TREE=$(git write-tree 2>/dev/null)
+  unset GIT_INDEX_FILE
   rm -f "$_tmp"
 }
+
+# gs_worktree_tree -- printing wrapper, for the one caller that only wants the
+# tree and can afford a subshell.
+gs_worktree_tree() { gs_snapshot_tree; printf '%s' "$GS_TREE"; }
 
 # gs_remember_mine / gs_known_mine <sync-branch> [tree] -- the tree of the last
 # checkpoint *we* pushed. Distinct from gs_remember_push, which records what the
@@ -142,7 +194,7 @@ gs_known_mine() {
 
 # gs_remote_ref <sync-branch> -- the sha the remote actually holds, "" if none.
 gs_remote_ref() {
-  git ls-remote origin "refs/heads/$1" 2>/dev/null | cut -f1 | head -1
+  git ls-remote "$(gs_remote)" "refs/heads/$1" 2>/dev/null | cut -f1 | head -1
 }
 
 # gs_prune_orphans -- drop checkpoints whose branch no longer exists locally.
@@ -161,7 +213,7 @@ gs_prune_orphans() {
     _name=$(gs_decode "${_sb#git-sync/}")
     git show-ref --verify --quiet "refs/heads/$_name" && continue
     if git push --force-with-lease="refs/heads/$_sb:$_sha" \
-           origin ":refs/heads/$_sb" >/dev/null 2>&1; then
+           "$(gs_remote)" ":refs/heads/$_sb" >/dev/null 2>&1; then
       _pruned="${_pruned:+$_pruned }$_name"
     fi
     gs_forget_push "$_sb"

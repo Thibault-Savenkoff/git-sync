@@ -13,7 +13,8 @@ set -e
 . "${CLAUDE_PLUGIN_ROOT}/hooks/lib.sh"
 
 gs_enabled || exit 0
-gs_has_remote || exit 0
+REMOTE=$(gs_remote)
+[ -n "$REMOTE" ] || exit 0
 
 if [ "$(gs_mode)" != "checkpoint" ]; then
   git pull --ff-only >/dev/null 2>&1 || true
@@ -29,7 +30,7 @@ git pull --ff-only >/dev/null 2>&1 || true
 # The leading "+" is not optional: a checkpoint is force-pushed, so its update
 # is never a fast-forward. Without it the fetch is rejected and this machine
 # quietly stops seeing anything after the very first checkpoint.
-git fetch -q origin "+refs/heads/$SYNC_BRANCH:refs/git-sync/$SYNC_BRANCH" 2>/dev/null || exit 0
+git fetch -q "$REMOTE" "+refs/heads/$SYNC_BRANCH:refs/git-sync/$SYNC_BRANCH" 2>/dev/null || exit 0
 CKPT=$(git rev-parse -q --verify "refs/git-sync/$SYNC_BRANCH" 2>/dev/null) || CKPT=""
 if [ -z "$CKPT" ]; then
   # Nothing on the remote. If we still hold a lease for it, the checkpoint was

@@ -25,8 +25,9 @@ if [ "$(gs_mode)" = "checkpoint" ]; then
     gs_json Stop "git-sync: HEAD detache, pas de checkpoint (aucune branche a suivre)." ""
     exit 0
   fi
-  if ! gs_has_remote; then
-    gs_json Stop "git-sync: aucun remote configure, checkpoint impossible." ""
+  REMOTE=$(gs_remote)
+  if [ -z "$REMOTE" ]; then
+    gs_json Stop "git-sync: impossible de choisir un remote (plusieurs configures, aucun nomme origin, et la branche n'a pas d'upstream). Fixe-le avec: git branch --set-upstream-to=<remote>/$(gs_branch)" ""
     exit 0
   fi
 
@@ -35,25 +36,13 @@ if [ "$(gs_mode)" = "checkpoint" ]; then
     MSG="git-sync: checkpoints retires pour des branches disparues ($PRUNED)."
   fi
 
-  # Snapshot the work tree through an index of our own, so the user's staged
-  # changes are neither read nor disturbed.
-  TMP_INDEX=$(mktemp)
-  trap 'rm -f "$TMP_INDEX"' EXIT
-  GIT_INDEX_FILE="$TMP_INDEX"; export GIT_INDEX_FILE
-  git read-tree HEAD
-  # 1.x appended these patterns to the repo's own .gitignore and committed it --
-  # editing the user's project to protect our own push. Here they are applied as
-  # an extra exclude file for this snapshot only, which protects the same things
-  # and changes nothing in the repo. Already-tracked files are unaffected: if a
-  # key is committed, that was a deliberate act and not ours to override.
-  EXCLUDES="${CLAUDE_PLUGIN_ROOT}/hooks/ignore-patterns.txt"
-  if [ -f "$EXCLUDES" ]; then
-    git -c core.excludesFile="$EXCLUDES" add -A
-  else
-    git add -A
+  # Snapshot the work tree. See gs_snapshot_tree: one implementation, shared
+  # with the ping-pong check that has to agree with it byte for byte.
+  gs_snapshot_tree
+  TREE="$GS_TREE"
+  if [ -n "$GS_SUBMODULES" ]; then
+    MSG="${MSG:+$MSG }git-sync: le contenu des sous-modules n'est pas transporte ($GS_SUBMODULES) -- committe et pousse-les dans leur propre depot."
   fi
-  TREE=$(git write-tree)
-  unset GIT_INDEX_FILE
 
   HEAD_SHA=$(git rev-parse HEAD)
   if [ "$TREE" = "$(git rev-parse "HEAD^{tree}")" ]; then
@@ -67,7 +56,7 @@ if [ "$(gs_mode)" = "checkpoint" ]; then
     OURS=$(gs_known_push "$SYNC_BRANCH")
     if [ -n "$OURS" ]; then
       if git push --force-with-lease="refs/heads/$SYNC_BRANCH:$OURS" \
-             origin ":refs/heads/$SYNC_BRANCH" >/dev/null 2>&1; then
+             "$REMOTE" ":refs/heads/$SYNC_BRANCH" >/dev/null 2>&1; then
         gs_forget_push "$SYNC_BRANCH"
         MSG="${MSG% }git-sync: travail committe, checkpoint obsolete retire de $SYNC_BRANCH."
       fi
@@ -96,7 +85,7 @@ Git-Sync-Branch: $(gs_branch)"
     LEASE=$(gs_known_push "$SYNC_BRANCH")
     LOG="$REPO_ROOT/.git/git-sync-push-error.log"
     if git push --force-with-lease="refs/heads/$SYNC_BRANCH:$LEASE" \
-           origin "$CKPT:refs/heads/$SYNC_BRANCH" >"$LOG" 2>&1; then
+           "$REMOTE" "$CKPT:refs/heads/$SYNC_BRANCH" >"$LOG" 2>&1; then
       rm -f "$LOG"
       gs_remember_push "$SYNC_BRANCH" "$CKPT"
       gs_remember_mine "$SYNC_BRANCH" "$TREE"

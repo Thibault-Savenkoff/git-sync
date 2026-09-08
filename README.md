@@ -85,6 +85,17 @@ git config git-sync.checkpointCi true
 
 Undo any of them with `git config --unset git-sync.<name>`.
 
+## Limits
+
+- **Submodules do not travel.** A submodule's commits live in its own
+  repository, so a checkpoint cannot carry them; the gitlink is pinned to
+  `HEAD`'s value rather than shipped, since the commit it points at exists only
+  on the machine that made it. git-sync says so when it notices — commit and
+  push submodule work in its own repo.
+- The remote is picked from the branch's upstream, then `origin`, then the only
+  remote if there is exactly one. With several remotes and no upstream, git-sync
+  refuses rather than guessing, and says which command fixes it.
+
 ## Safety
 
 The checkpoint is force-pushed, which is safe only because that branch belongs

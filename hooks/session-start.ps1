@@ -3,7 +3,8 @@
 . (Join-Path $env:CLAUDE_PLUGIN_ROOT "hooks/lib.ps1")
 
 if (-not (Gs-Enabled)) { exit 0 }
-if (-not (Gs-HasRemote)) { exit 0 }
+$remote = Gs-Remote
+if (-not $remote) { exit 0 }
 
 if ((Gs-Mode) -ne "checkpoint") { git pull --ff-only *> $null; exit 0 }
 
@@ -15,7 +16,7 @@ git pull --ff-only *> $null
 
 # The leading "+" is not optional: a checkpoint is force-pushed, so its update
 # is never a fast-forward.
-git fetch -q origin "+refs/heads/${syncBranch}:refs/git-sync/$syncBranch" *> $null
+git fetch -q $remote "+refs/heads/${syncBranch}:refs/git-sync/$syncBranch" *> $null
 $ckpt = (git rev-parse -q --verify "refs/git-sync/$syncBranch" 2>$null)
 if (-not $ckpt) {
   # Nothing on the remote. A lease we still hold means the checkpoint was landed

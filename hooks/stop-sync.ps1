@@ -14,29 +14,21 @@ if ((Gs-Mode) -eq "checkpoint") {
     Gs-Json "Stop" "git-sync: HEAD detache, pas de checkpoint (aucune branche a suivre)." ""
     exit 0
   }
-  if (-not (Gs-HasRemote)) {
-    Gs-Json "Stop" "git-sync: aucun remote configure, checkpoint impossible." ""
+  $remote = Gs-Remote
+  if (-not $remote) {
+    Gs-Json "Stop" "git-sync: impossible de choisir un remote (plusieurs configures, aucun nomme origin, et la branche n'a pas d'upstream). Fixe-le avec: git branch --set-upstream-to=<remote>/$(Gs-Branch)" ""
     exit 0
   }
 
   $pruned = Gs-PruneOrphans
   if ($pruned) { $msg = "git-sync: checkpoints retires pour des branches disparues ($pruned)." }
 
-  # Snapshot through an index of our own, so the user's staging area is
-  # neither read nor disturbed.
-  $tmpIndex = [System.IO.Path]::GetTempFileName()
-  Remove-Item $tmpIndex -Force -ErrorAction SilentlyContinue
-  try {
-    $env:GIT_INDEX_FILE = $tmpIndex
-    git read-tree HEAD
-    # See stop-sync.sh: applied as an extra exclude file for this snapshot only,
-    # rather than written into the user's own .gitignore as 1.x did.
-    $excludes = Join-Path $env:CLAUDE_PLUGIN_ROOT "hooks/ignore-patterns.txt"
-    if (Test-Path $excludes) { git -c core.excludesFile="$excludes" add -A } else { git add -A }
-    $tree = (git write-tree).Trim()
-  } finally {
-    Remove-Item Env:\GIT_INDEX_FILE -ErrorAction SilentlyContinue
-    Remove-Item $tmpIndex -Force -ErrorAction SilentlyContinue
+  # See Gs-SnapshotTree: one implementation, shared with the ping-pong check
+  # that has to agree with it byte for byte.
+  $snap = Gs-SnapshotTree
+  $tree = $snap.Tree
+  if ($snap.Submodules.Count -gt 0) {
+    $msg = (@($msg, "git-sync: le contenu des sous-modules n'est pas transporte ($($snap.Submodules -join ' ')) -- committe et pousse-les dans leur propre depot.") | Where-Object { $_ }) -join " "
   }
 
   $headSha = (git rev-parse HEAD).Trim()
@@ -49,7 +41,7 @@ if ((Gs-Mode) -eq "checkpoint") {
     $msg = (@($msg, "git-sync: rien a synchroniser.") | Where-Object { $_ }) -join " "
     $ours = Gs-KnownPush $syncBranch
     if ($ours) {
-      git push "--force-with-lease=refs/heads/${syncBranch}:${ours}" origin ":refs/heads/$syncBranch" *> $null
+      git push "--force-with-lease=refs/heads/${syncBranch}:${ours}" $remote ":refs/heads/$syncBranch" *> $null
       if ($LASTEXITCODE -eq 0) {
         Gs-ForgetPush $syncBranch
         $msg = "git-sync: travail committe, checkpoint obsolete retire de $syncBranch."
@@ -75,7 +67,7 @@ Git-Sync-Branch: $(Gs-Branch)
 
     $lease = Gs-KnownPush $syncBranch
     $log = Join-Path $repoRoot ".git/git-sync-push-error.log"
-    git push "--force-with-lease=refs/heads/${syncBranch}:${lease}" origin "${ckpt}:refs/heads/$syncBranch" *> $log
+    git push "--force-with-lease=refs/heads/${syncBranch}:${lease}" $remote "${ckpt}:refs/heads/$syncBranch" *> $log
     if ($LASTEXITCODE -eq 0) {
       Remove-Item -Force $log -ErrorAction SilentlyContinue
       Gs-RememberPush $syncBranch $ckpt
