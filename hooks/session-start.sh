@@ -15,6 +15,7 @@ set -e
 gs_enabled || exit 0
 REMOTE=$(gs_remote)
 [ -n "$REMOTE" ] || exit 0
+gs_has_commits || exit 0
 
 if [ "$(gs_mode)" != "checkpoint" ]; then
   git pull --ff-only >/dev/null 2>&1 || true

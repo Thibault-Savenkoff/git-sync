@@ -28,6 +28,12 @@ gs_enabled() {
 
 gs_repo_root() { git rev-parse --show-toplevel 2>/dev/null; }
 
+# gs_has_commits -- false in a freshly-initialised repo, where there is no HEAD
+# to hang a checkpoint off. Every snapshot step assumes HEAD resolves; without
+# this guard the shell hook died on exit 128 with nothing to show for it, and
+# the PowerShell one printed raw git errors and then claimed success.
+gs_has_commits() { git rev-parse -q --verify HEAD >/dev/null 2>&1; }
+
 # gs_branch -- the checked-out branch, empty on a detached HEAD.
 gs_branch() { git symbolic-ref --quiet --short HEAD 2>/dev/null; }
 
@@ -190,6 +196,13 @@ gs_known_mine() {
   _f="$(gs_repo_root)/.git/git-sync-mine"
   [ -f "$_f" ] || return 0
   sed -n "s|^$1 ||p" "$_f" | head -1
+}
+
+# gs_remote_tree <sync-branch> -- the tree of the checkpoint the remote holds.
+# Needs the ref fetched first; used only on the push-failure path.
+gs_remote_tree() {
+  git fetch -q "$(gs_remote)" "+refs/heads/$1:refs/git-sync/probe" 2>/dev/null || return 0
+  git rev-parse -q --verify "refs/git-sync/probe^{tree}" 2>/dev/null || true
 }
 
 # gs_remote_ref <sync-branch> -- the sha the remote actually holds, "" if none.

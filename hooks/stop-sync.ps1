@@ -14,6 +14,11 @@ if ((Gs-Mode) -eq "checkpoint") {
     Gs-Json "Stop" "git-sync: HEAD detache, pas de checkpoint (aucune branche a suivre)." ""
     exit 0
   }
+  if (-not (Gs-HasCommits)) {
+    Gs-Json "Stop" "git-sync: ce depot n'a encore aucun commit, il n'y a pas de base sur laquelle poser un checkpoint. Fais un premier commit." ""
+    exit 0
+  }
+
   $remote = Gs-Remote
   if (-not $remote) {
     Gs-Json "Stop" "git-sync: impossible de choisir un remote (plusieurs configures, aucun nomme origin, et la branche n'a pas d'upstream). Fixe-le avec: git branch --set-upstream-to=<remote>/$(Gs-Branch)" ""
@@ -73,6 +78,11 @@ Git-Sync-Branch: $(Gs-Branch)
       Gs-RememberPush $syncBranch $ckpt
       Gs-RememberMine $syncBranch $tree
       $msg = (@($msg, "git-sync: checkpoint pousse sur $syncBranch ($stat).") | Where-Object { $_ }) -join " "
+    } elseif ((Gs-RemoteTree $syncBranch) -eq $tree) {
+      # See stop-sync.sh: someone got there first with exactly our content.
+      Gs-RememberPush $syncBranch (Gs-RemoteRef $syncBranch)
+      Gs-RememberMine $syncBranch $tree
+      $msg = (@($msg, "git-sync: checkpoint deja a jour sur $syncBranch.") | Where-Object { $_ }) -join " "
     } elseif ((Get-Content $log -Raw -ErrorAction SilentlyContinue) -match "stale info") {
       # See stop-sync.sh: a refused lease has two very different causes, and the
       # remote is the only thing that can tell them apart.

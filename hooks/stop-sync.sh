@@ -25,6 +25,11 @@ if [ "$(gs_mode)" = "checkpoint" ]; then
     gs_json Stop "git-sync: HEAD detache, pas de checkpoint (aucune branche a suivre)." ""
     exit 0
   fi
+  if ! gs_has_commits; then
+    gs_json Stop "git-sync: ce depot n'a encore aucun commit, il n'y a pas de base sur laquelle poser un checkpoint. Fais un premier commit." ""
+    exit 0
+  fi
+
   REMOTE=$(gs_remote)
   if [ -z "$REMOTE" ]; then
     gs_json Stop "git-sync: impossible de choisir un remote (plusieurs configures, aucun nomme origin, et la branche n'a pas d'upstream). Fixe-le avec: git branch --set-upstream-to=<remote>/$(gs_branch)" ""
@@ -90,6 +95,13 @@ Git-Sync-Branch: $(gs_branch)"
       gs_remember_push "$SYNC_BRANCH" "$CKPT"
       gs_remember_mine "$SYNC_BRANCH" "$TREE"
       MSG="${MSG:+$MSG }git-sync: checkpoint pousse sur $SYNC_BRANCH ($STAT)."
+    elif [ "$(gs_remote_tree "$SYNC_BRANCH")" = "$TREE" ]; then
+      # Someone got there first with exactly our content -- typically a second
+      # Claude session on this same repo. Nothing is missing from the remote, so
+      # sending the user to a log file would be alarming and pointless.
+      gs_remember_push "$SYNC_BRANCH" "$(gs_remote_ref "$SYNC_BRANCH")"
+      gs_remember_mine "$SYNC_BRANCH" "$TREE"
+      MSG="${MSG:+$MSG }git-sync: checkpoint deja a jour sur $SYNC_BRANCH."
     elif grep -q "stale info" "$LOG" 2>/dev/null; then
       # A refused lease has two very different causes, and telling the user the
       # wrong one is worse than saying nothing. Ask the remote which it is --

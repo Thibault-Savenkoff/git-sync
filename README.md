@@ -92,6 +92,8 @@ Undo any of them with `git config --unset git-sync.<name>`.
   `HEAD`'s value rather than shipped, since the commit it points at exists only
   on the machine that made it. git-sync says so when it notices — commit and
   push submodule work in its own repo.
+- A repository with no commits yet has no base for a checkpoint; git-sync says
+  so and does nothing until the first commit exists.
 - The remote is picked from the branch's upstream, then `origin`, then the only
   remote if there is exactly one. With several remotes and no upstream, git-sync
   refuses rather than guessing, and says which command fixes it.
@@ -145,4 +147,5 @@ desktop are rarely the same OS, so a checkpoint written on one has to be
 readable on the other. `pwsh` missing simply skips those runs.
 
 Measured on a 20,000-file repository, the stop hook takes ~0.6s (shell) and
-~1.4s (PowerShell), against a 15s timeout.
+~1.4s (PowerShell), against a 15s timeout. The whole suite runs in about 17s
+for one implementation.

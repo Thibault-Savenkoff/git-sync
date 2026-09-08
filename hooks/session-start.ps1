@@ -5,6 +5,7 @@
 if (-not (Gs-Enabled)) { exit 0 }
 $remote = Gs-Remote
 if (-not $remote) { exit 0 }
+if (-not (Gs-HasCommits)) { exit 0 }
 
 if ((Gs-Mode) -ne "checkpoint") { git pull --ff-only *> $null; exit 0 }
 

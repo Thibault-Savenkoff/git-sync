@@ -19,6 +19,12 @@ function Gs-Enabled {
 }
 
 function Gs-RepoRoot { (git rev-parse --show-toplevel 2>$null) }
+
+# See lib.sh: no HEAD means no base for a checkpoint.
+function Gs-HasCommits {
+  git rev-parse -q --verify HEAD *> $null
+  return ($LASTEXITCODE -eq 0)
+}
 function Gs-Branch { (git symbolic-ref --quiet --short HEAD 2>$null) }
 function Gs-Mode { Gs-Config "mode" "checkpoint" }
 function Gs-Machine { Gs-Config "machine" $env:COMPUTERNAME }
@@ -133,6 +139,14 @@ function Gs-ForgetPush([string]$SyncBranch) {
   if (-not (Test-Path $f)) { return }
   $lines = @(Get-Content $f | Where-Object { $_ -notmatch "^$([regex]::Escape($SyncBranch)) " })
   Set-Content -Path $f -Value $lines
+}
+
+function Gs-RemoteTree([string]$SyncBranch) {
+  git fetch -q (Gs-Remote) "+refs/heads/${SyncBranch}:refs/git-sync/probe" *> $null
+  if ($LASTEXITCODE -ne 0) { return "" }
+  $t = (git rev-parse -q --verify "refs/git-sync/probe^{tree}" 2>$null)
+  if ($t) { return $t.Trim() }
+  return ""
 }
 
 function Gs-RemoteRef([string]$SyncBranch) {
