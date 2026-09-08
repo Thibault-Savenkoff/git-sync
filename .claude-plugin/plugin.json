@@ -1,7 +1,7 @@
 {
   "name": "git-sync",
-  "version": "1.4.0",
-  "description": "Auto-pulls on session start and auto-commits + pushes on session stop, so Claude Code projects stay in sync across machines.",
+  "version": "2.0.0",
+  "description": "Carries work in progress between your machines without leaving WIP commits in the project's history.",
   "author": {
     "name": "Thibault Savenkoff"
   }
