@@ -39,7 +39,7 @@ if ((git rev-parse "$ckpt^{tree}").Trim() -eq (git rev-parse "HEAD^{tree}").Trim
 }
 
 if ($base -ne $headSha) {
-  Gs-Json "SessionStart" "git-sync: un checkpoint de $machine existe sur $syncBranch mais part d'un autre commit ($base vs $headSha). Rien n'a ete applique -- inspecte-le avec: git diff HEAD refs/git-sync/$syncBranch" ""
+  Gs-Json "SessionStart" "git-sync: a checkpoint from $machine exists on $syncBranch but is based on a different commit ($base vs $headSha). Nothing was applied -- inspect it with: git diff HEAD refs/git-sync/$syncBranch" ""
   exit 0
 }
 
@@ -52,7 +52,7 @@ if ((git status --porcelain) -join "") {
   if ($mine -and $mine -eq (Gs-WorktreeTree)) {
     $reset = $true
   } else {
-    Gs-Json "SessionStart" "git-sync: un checkpoint de $machine attend sur $syncBranch, mais ce work tree a des modifications locales qui ne sont pas dans le dernier checkpoint que tu as pousse. Rien n'a ete applique. Compare avec: git diff HEAD refs/git-sync/$syncBranch" ""
+    Gs-Json "SessionStart" "git-sync: a checkpoint from $machine is waiting on $syncBranch, but this work tree has local changes that are not in the last checkpoint you pushed. Nothing was applied. Compare with: git diff HEAD refs/git-sync/$syncBranch" ""
     exit 0
   }
 }
@@ -65,18 +65,18 @@ $stat = ((git diff --stat HEAD $ckpt) | Select-Object -Last 20) -join "`n"
 if ($reset) { git read-tree -u --reset $ckpt *> $null }
 else        { git read-tree -u -m HEAD $ckpt *> $null }
 if ($LASTEXITCODE -ne 0) {
-  Gs-Json "SessionStart" "git-sync: application du checkpoint de $machine impossible (conflit avec des fichiers locaux). Rien n'a change." ""
+  Gs-Json "SessionStart" "git-sync: could not apply the checkpoint from $machine (it conflicts with local files). Nothing changed." ""
   exit 0
 }
 git reset -q
 Gs-RememberPush $syncBranch $ckpt
 Gs-RememberMine $syncBranch (git rev-parse "$ckpt^{tree}").Trim()
 
-Gs-Json "SessionStart" "git-sync: travail de $machine applique depuis $syncBranch (non committe)." @"
-git-sync a restaure le travail en cours de la machine $machine. Ces modifications sont dans le work tree, non committees, et ne sont pas de toi :
+Gs-Json "SessionStart" "git-sync: work from $machine applied from $syncBranch (uncommitted)." @"
+git-sync restored work in progress from machine $machine. These changes are in the work tree, uncommitted, and are not yours:
 
 $stat
 
-Le pourquoi de ces changements est dans la section '## Etat courant' de CLAUDE.md si elle existe. Ne recommence pas ce travail : continue-le.
+The reasoning behind them is in the '## Current state' section of CLAUDE.md if it exists. Do not redo this work: continue it.
 "@
 exit 0

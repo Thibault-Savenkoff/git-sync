@@ -8,33 +8,33 @@
 new_world
 clone_b
 
-it "A travaille et s'arrete"
-printf 'A: premiere passe\n' >> file.txt
+it "A works and stops"
+printf 'A: first pass\n' >> file.txt
 run_stop >/dev/null
 
-it "B recupere, continue, et s'arrete"
+it "B picks it up, continues, and stops"
 cd "$B"; git pull -q --ff-only 2>/dev/null
 run_start >/dev/null
-assert_contains "$(cat file.txt)" "A: premiere passe" "travail de A recu"
-printf 'B: deuxieme passe\n' >> file.txt
+assert_contains "$(cat file.txt)" "A: first pass" "A's work received"
+printf 'B: second pass\n' >> file.txt
 out=$(run_stop)
-assert_contains "$out" "checkpoint pousse" "B a pousse"
+assert_contains "$out" "checkpoint pushed" "B a pousse"
 
-it "A rouvre une session et recoit l'ajout de B, sans rien taper"
+it "A opens a session and receives B's addition, typing nothing"
 cd "$A"
 out=$(run_start)
-assert_contains "$(cat file.txt)" "B: deuxieme passe" "ajout de B recu par A"
-assert_contains "$(cat file.txt)" "A: premiere passe" "travail de A conserve"
+assert_contains "$(cat file.txt)" "B: second pass" "B's addition received by A"
+assert_contains "$(cat file.txt)" "A: first pass" "travail de A conserve"
 
-it "A continue et repasse la main"
-printf 'A: troisieme passe\n' >> file.txt
+it "A continues and hands back"
+printf 'A: third pass\n' >> file.txt
 out=$(run_stop)
-assert_contains "$out" "checkpoint pousse" "A a repousse"
+assert_contains "$out" "checkpoint pushed" "A a repousse"
 
-it "B recoit le tour suivant"
+it "B receives the next turn"
 cd "$B"
 out=$(run_start)
-assert_contains "$(cat file.txt)" "A: troisieme passe" "troisieme passe recue"
+assert_contains "$(cat file.txt)" "A: third pass" "third pass received"
 
 cleanup_world
 exit $FAILURES

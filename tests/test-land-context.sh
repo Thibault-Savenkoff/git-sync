@@ -11,50 +11,50 @@ ctx() { sh "$PLUGIN_ROOT/commands/land-context.sh" 2>&1; }
 
 new_world
 
-it "annonce l'absence de checkpoint quand il n'y en a pas"
+it "reports no checkpoint when there is none"
 out=$(ctx)
-assert_contains "$out" "Checkpoint : (aucun)" "aucun checkpoint"
+assert_contains "$out" "Checkpoint: (none)" "no checkpoint"
 
-it "trouve le checkpoint et lit ses trailers"
-printf 'du travail\n' >> file.txt
+it "finds the checkpoint and reads its trailers"
+printf 'some work\n' >> file.txt
 run_stop >/dev/null
 out=$(ctx)
-assert_contains "$out" "$(sync_branch_sha git-sync/main)" "sha du checkpoint"
-assert_contains "$out" "Origine : machineA" "machine d'origine"
-assert_contains "$out" "Cette machine : machineA" "machine courante"
-assert_contains "$out" "Base du checkpoint : $(git rev-parse HEAD)" "base"
-assert_contains "$out" "file.txt" "resume du diff"
+assert_contains "$out" "$(sync_branch_sha git-sync/main)" "checkpoint sha"
+assert_contains "$out" "Origin: machineA" "origin machine"
+assert_contains "$out" "This machine: machineA" "current machine"
+assert_contains "$out" "Checkpoint base: $(git rev-parse HEAD)" "base"
+assert_contains "$out" "file.txt" "diff summary"
 
-it "fonctionne avec un remote qui ne s'appelle pas origin"
+it "works with a remote not named origin"
 git remote rename origin github
 git branch -q --set-upstream-to=github/main main 2>/dev/null
 out=$(ctx)
-assert_contains "$out" "Remote : github" "remote detecte"
-assert_contains "$out" "Origine : machineA" "checkpoint toujours trouve"
+assert_contains "$out" "Remote: github" "remote detected"
+assert_contains "$out" "Origin: machineA" "checkpoint still found"
 cleanup_world
 
-it "trouve le checkpoint d'une branche imbriquee (nom encode)"
+it "finds a nested branch's checkpoint (encoded name)"
 new_world
 git checkout -q -b feat/sub
-printf 'du travail\n' >> file.txt
+printf 'some work\n' >> file.txt
 run_stop >/dev/null
 out=$(ctx)
-assert_contains "$out" "Ref du checkpoint : git-sync/feat%2Fsub" "ref encode"
-assert_contains "$out" "Origine : machineA" "checkpoint trouve"
+assert_contains "$out" "Checkpoint ref: git-sync/feat%2Fsub" "encoded ref"
+assert_contains "$out" "Origin: machineA" "checkpoint found"
 cleanup_world
 
-it "refuse proprement sur un HEAD detache"
+it "refuses cleanly on a detached HEAD"
 new_world
 git checkout -q --detach HEAD
 out=$(ctx)
-assert_contains "$out" "HEAD detache" "message"
+assert_contains "$out" "detached HEAD" "message"
 cleanup_world
 
-it "refuse proprement quand git-sync est desactive"
+it "refuses cleanly when git-sync is disabled"
 new_world
 git config git-sync.disabled true
 out=$(ctx)
-assert_contains "$out" "desactive" "message"
+assert_contains "$out" "disabled" "message"
 cleanup_world
 
 exit $FAILURES

@@ -16,16 +16,16 @@ fail() { printf '  FAIL %s\n       %s\n' "$CURRENT" "$1"; FAILURES=$((FAILURES +
 
 assert_eq() {
   [ "$1" = "$2" ] && return 0
-  fail "${3:-valeur}: attendu [$1], obtenu [$2]"
+  fail "${3:-value}: expected [$1], got [$2]"
 }
 
 assert_contains() {
   case "$1" in *"$2"*) return 0 ;; esac
-  fail "${3:-sortie}: [$2] absent de [$1]"
+  fail "${3:-output}: [$2] missing from [$1]"
 }
 
 assert_not_contains() {
-  case "$1" in *"$2"*) fail "${3:-sortie}: [$2] present alors qu'il ne devrait pas" ;; esac
+  case "$1" in *"$2"*) fail "${3:-output}: [$2] present when it should not be" ;; esac
 }
 
 it() { CURRENT="$1"; printf '  - %s\n' "$1"; }
@@ -46,7 +46,7 @@ new_world() {
   git config user.email a@test; git config user.name "Machine A"
   git config git-sync.machine machineA
   git remote add origin "$REMOTE"
-  printf 'ligne 1\n' > file.txt
+  printf 'line 1\n' > file.txt
   git add -A && git commit -qm "init"
   git push -q origin main 2>/dev/null
   git branch -q --set-upstream-to=origin/main main 2>/dev/null
@@ -84,7 +84,7 @@ run_start() {
 
 skip_unless_shell_available() {
   if [ "${GS_SHELL:-sh}" = "pwsh" ] && ! command -v pwsh >/dev/null 2>&1; then
-    printf '  (pwsh absent -- cas ignores)\n'; exit 0
+    printf '  (pwsh not installed -- cases skipped)\n'; exit 0
   fi
 }
 

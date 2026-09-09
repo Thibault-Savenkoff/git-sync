@@ -21,11 +21,11 @@ if ! git diff --cached --quiet; then
       -m "Committed automatically by git-sync
 https://github.com/Thibault-Savenkoff/git-sync" >/dev/null 2>&1 || true
   if ! gs_has_remote; then
-    MSG="git-sync: commit local (aucun remote configure)."
+    MSG="git-sync: committed locally (no remote configured)."
   elif git push >"$REPO_ROOT/.git/git-sync-push-error.log" 2>&1; then
     rm -f "$REPO_ROOT/.git/git-sync-push-error.log"
-    MSG="git-sync: commit et push effectues."
+    MSG="git-sync: committed and pushed."
   else
-    MSG="git-sync: commit effectue mais push echoue -- voir .git/git-sync-push-error.log"
+    MSG="git-sync: committed but the push failed -- see .git/git-sync-push-error.log"
   fi
 fi

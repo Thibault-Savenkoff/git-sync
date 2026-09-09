@@ -56,7 +56,7 @@ if [ "$(git rev-parse "$CKPT^{tree}")" = "$(gs_head_tree)" ]; then exit 0; fi
 
 if [ "$BASE" != "$HEAD_SHA" ]; then
   gs_json SessionStart \
-    "git-sync: un checkpoint de $MACHINE existe sur $SYNC_BRANCH mais part d'un autre commit ($BASE vs $HEAD_SHA). Rien n'a ete applique -- inspecte-le avec: git diff HEAD refs/git-sync/$SYNC_BRANCH" ""
+    "git-sync: a checkpoint from $MACHINE exists on $SYNC_BRANCH but is based on a different commit ($BASE vs $HEAD_SHA). Nothing was applied -- inspect it with: git diff HEAD refs/git-sync/$SYNC_BRANCH" ""
   exit 0
 fi
 
@@ -71,7 +71,7 @@ if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
     RESET="--reset"
   else
     gs_json SessionStart \
-      "git-sync: un checkpoint de $MACHINE attend sur $SYNC_BRANCH, mais ce work tree a des modifications locales qui ne sont pas dans le dernier checkpoint que tu as pousse. Rien n'a ete applique. Compare avec: git diff HEAD refs/git-sync/$SYNC_BRANCH" ""
+      "git-sync: a checkpoint from $MACHINE is waiting on $SYNC_BRANCH, but this work tree has local changes that are not in the last checkpoint you pushed. Nothing was applied. Compare with: git diff HEAD refs/git-sync/$SYNC_BRANCH" ""
     exit 0
   fi
 fi
@@ -94,7 +94,7 @@ else
 fi
 if [ "$APPLY_OK" != "yes" ]; then
   gs_json SessionStart \
-    "git-sync: application du checkpoint de $MACHINE impossible (conflit avec des fichiers locaux). Rien n'a change." ""
+    "git-sync: could not apply the checkpoint from $MACHINE (it conflicts with local files). Nothing changed." ""
   exit 0
 fi
 git reset -q
@@ -105,10 +105,10 @@ gs_remember_push "$SYNC_BRANCH" "$CKPT"
 gs_remember_mine "$SYNC_BRANCH" "$(git rev-parse "$CKPT^{tree}")"
 
 gs_json SessionStart \
-  "git-sync: travail de $MACHINE applique depuis $SYNC_BRANCH (non committe)." \
-  "git-sync a restaure le travail en cours de la machine $MACHINE. Ces modifications sont dans le work tree, non committees, et ne sont pas de toi :
+  "git-sync: work from $MACHINE applied from $SYNC_BRANCH (uncommitted)." \
+  "git-sync restored work in progress from machine $MACHINE. These changes are in the work tree, uncommitted, and are not yours:
 
 $STAT
 
-Le pourquoi de ces changements est dans la section '## Etat courant' de CLAUDE.md si elle existe. Ne recommence pas ce travail : continue-le."
+The reasoning behind them is in the '## Current state' section of CLAUDE.md if it exists. Do not redo this work: continue it."
 exit 0

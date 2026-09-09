@@ -5,41 +5,41 @@
 
 new_world
 
-it "une branche renommee ne laisse pas son checkpoint orphelin"
+it "a renamed branch does not strand its checkpoint"
 git checkout -q -b feature/x
-printf 'travail\n' >> file.txt
+printf 'work\n' >> file.txt
 run_stop >/dev/null
-[ -n "$(sync_branch_sha 'git-sync/feature%2Fx')" ] || fail "pas de checkpoint initial"
+[ -n "$(sync_branch_sha 'git-sync/feature%2Fx')" ] || fail "no initial checkpoint"
 git branch -q -m feature/y
 out=$(run_stop)
-assert_eq "" "$(sync_branch_sha 'git-sync/feature%2Fx')" "checkpoint de l'ancien nom"
-[ -n "$(sync_branch_sha 'git-sync/feature%2Fy')" ] || fail "pas de checkpoint sous le nouveau nom"
-assert_contains "$out" "branches disparues" "l'utilisateur est informe"
+assert_eq "" "$(sync_branch_sha 'git-sync/feature%2Fx')" "old name's checkpoint"
+[ -n "$(sync_branch_sha 'git-sync/feature%2Fy')" ] || fail "no checkpoint under the new name"
+assert_contains "$out" "no longer exist" "the user is told"
 
-it "une branche supprimee ne laisse pas son checkpoint orphelin"
+it "a deleted branch does not strand its checkpoint"
 git checkout -q main
 git branch -q -D feature/y
 run_stop >/dev/null
-assert_eq "" "$(sync_branch_sha 'git-sync/feature%2Fy')" "checkpoint de la branche supprimee"
+assert_eq "" "$(sync_branch_sha 'git-sync/feature%2Fy')" "deleted branch's checkpoint"
 
-it "deux branches imbriquees peuvent coexister entre machines (conflit D/F)"
+it "nested branches coexist across machines (D/F conflict)"
 # refs/heads/a/b est impossible tant que refs/heads/a existe. Un nom de branche
 # encode en un seul segment sous git-sync/ rend le conflit inatteignable.
 cleanup_world
 new_world
 clone_b
 git checkout -q -b feat
-printf 'sur feat\n' >> file.txt
+printf 'on feat\n' >> file.txt
 run_stop >/dev/null
-[ -n "$(sync_branch_sha 'git-sync/feat')" ] || fail "pas de checkpoint pour feat"
+[ -n "$(sync_branch_sha 'git-sync/feat')" ] || fail "no checkpoint for feat"
 
 cd "$B"
 git checkout -q -b feat/sub
-printf 'sur feat/sub\n' >> file.txt
+printf 'on feat/sub\n' >> file.txt
 out=$(run_stop)
-assert_contains "$out" "checkpoint pousse" "feat/sub doit pouvoir se synchroniser"
-[ -n "$(sync_branch_sha 'git-sync/feat%2Fsub')" ] || fail "feat/sub absent du remote"
-[ -n "$(sync_branch_sha 'git-sync/feat')" ] || fail "le checkpoint de feat a disparu"
+assert_contains "$out" "checkpoint pushed" "feat/sub doit pouvoir se synchroniser"
+[ -n "$(sync_branch_sha 'git-sync/feat%2Fsub')" ] || fail "feat/sub missing from the remote"
+[ -n "$(sync_branch_sha 'git-sync/feat')" ] || fail "feat's checkpoint disappeared"
 
 cleanup_world
 exit $FAILURES

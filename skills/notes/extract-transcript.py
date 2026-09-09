@@ -34,7 +34,7 @@ def text_of(content):
         elif kind == "thinking":
             pass  # reasoning is not the record
         elif kind == "tool_use":
-            out.append(f"[outil: {block.get('name', '?')}]")
+            out.append(f"[tool: {block.get('name', '?')}]")
         # tool_result is deliberately dropped -- that is the bulk of the file
     return "\n".join(p for p in out if p)
 
@@ -65,13 +65,13 @@ def main():
                 if not body:
                     continue
                 if len(body) > TURN_CAP:
-                    body = body[:TURN_CAP] + "\n[... turn tronque ...]"
+                    body = body[:TURN_CAP] + "\n[... turn truncated ...]"
                 turns.append(f"### {role}\n{body}")
     except OSError as exc:
-        sys.exit(f"impossible de lire {args.path}: {exc}")
+        sys.exit(f"cannot read {args.path}: {exc}")
 
     if not turns:
-        sys.exit("aucun tour de conversation trouve -- mauvais fichier ?")
+        sys.exit("no conversation turns found -- wrong file?")
 
     # Keep the tail: the end of a session holds the conclusions, the start holds
     # setup noise. Walk backwards until the budget is spent, then restore order.
@@ -85,9 +85,9 @@ def main():
 
     dropped = len(turns) - len(kept)
     print(f"# {args.path}")
-    print(f"# {len(turns)} tours, {len(kept)} gardes"
-          + (f", {dropped} plus anciens omis" if dropped else "")
-          + (f", {skipped} lignes illisibles" if skipped else ""))
+    print(f"# {len(turns)} turns, {len(kept)} kept"
+          + (f", {dropped} older ones dropped" if dropped else "")
+          + (f", {skipped} unreadable lines" if skipped else ""))
     print()
     print("\n\n".join(kept))
 

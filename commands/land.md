@@ -5,62 +5,60 @@ allowed-tools: Bash(git:*), Bash(sh:*), AskUserQuestion, Read
 
 !`sh "${CLAUDE_PLUGIN_ROOT}/commands/land-context.sh"`
 
-L'utilisateur a demande : $ARGUMENTS
+The user asked: $ARGUMENTS
 
-C'est le moment ou du travail en cours devient de l'historique. C'est le seul
-endroit du plugin ou quelque chose entre dans la branche du projet, et rien n'y
-entre sans que l'utilisateur ait valide le message.
+This is where work in progress becomes history. It is the only place in the
+plugin where anything enters the project's branch, and nothing enters it
+without the user having approved the message.
 
-## Marche a suivre
+## How to proceed
 
-1. **S'il n'y a aucun checkpoint**, dis-le en une ligne et arrete-toi. S'il y en
-   a un mais que sa base ne correspond pas au HEAD local, ne tente rien
-   d'automatique : explique la divergence et propose `git diff HEAD refs/git-sync/current`.
+1. **If there is no checkpoint**, say so in one line and stop. If there is one
+   but its base does not match the local HEAD, attempt nothing automatic:
+   explain the divergence and offer `git diff HEAD refs/git-sync/current`.
 
-2. **Si le work tree local est deja sale**, c'est le cas normal quand tu landes
-   depuis la machine qui vient de travailler : le contenu du checkpoint est
-   deja la. Travaille sur le work tree. Sinon, applique d'abord le checkpoint
-   avec `git read-tree -u -m HEAD refs/git-sync/current && git reset`.
+2. **If the local work tree is already dirty**, that is the normal case when
+   landing from the machine that just did the work: the checkpoint's content is
+   already there. Work from the work tree. Otherwise apply the checkpoint first
+   with `git read-tree -u --reset refs/git-sync/current && git reset`.
 
-3. **Lis le diff** (`git diff HEAD refs/git-sync/current`) et decide s'il porte
-   un seul sujet ou plusieurs. Plusieurs repertoires sans rapport, ou des
-   prefixes conventionnels differents (`feat` / `fix` / `docs` / `chore`), sont
-   le signal qu'il faut decouper.
+3. **Read the diff** (`git diff HEAD refs/git-sync/current`) and decide whether
+   it carries one subject or several. Unrelated directories, or different
+   conventional prefixes (`feat` / `fix` / `docs` / `chore`), are the signal to
+   split.
 
-   - Un seul sujet : propose **un** commit, sans ceremonie.
-   - Plusieurs : propose un decoupage, en donnant pour chaque commit son
-     message et les fichiers concernes, et dans un ordre ou chaque commit se
-     tient tout seul. Sors les changements sans rapport en premier, pour que la
-     paire feature + doc reste contigue.
+   - One subject: propose **one** commit, without ceremony.
+   - Several: propose a split, giving each commit its message and its files, in
+     an order where each commit stands on its own. Put unrelated changes first,
+     so a feature and its documentation stay adjacent.
 
-4. **Signale ce qui ne devrait pas etre committe** : `print`/`console.log` de
-   debug, `TODO` laisse en place, fichier temporaire, secret. Demande avant de
-   retirer quoi que ce soit.
+4. **Point out what should not be committed**: a leftover `print` or
+   `console.log`, a TODO left in place, a temporary file, a secret. Ask before
+   removing anything.
 
-5. **Fais valider** le decoupage et les messages avant de committer. L'utilisateur
-   peut ajuster.
+5. **Get the split and the messages approved** before committing. The user may
+   adjust them.
 
-6. **Committe** par chemins (`git add <fichiers>` puis `git commit`), pousse la
-   branche, puis supprime le checkpoint devenu inutile :
-   `git push origin --delete git-sync/<branche>`. Ne supprime pas
-   `.git/git-sync-pushed` en entier : il porte l'etat de toutes les branches.
-   Les hooks nettoient d'eux-memes la ligne devenue obsolete au demarrage
-   suivant, donc il n'y a rien a faire de plus ici.
+6. **Commit by path** (`git add <files>` then `git commit`), push the branch,
+   then delete the checkpoint that has served its purpose:
+   `git push <remote> --delete <checkpoint ref>`, using the remote and ref named
+   in the context above. Do not delete `.git/git-sync-pushed` wholesale: it
+   holds every branch's state. The hooks clear the stale line themselves at the
+   next session start, so there is nothing else to do here.
 
-7. **Si le checkpoint venait d'une autre machine** -- c'est-a-dire si `Origine`
-   differe de `Cette machine` -- dis a l'utilisateur d'y faire un `git pull`.
-   Elle detient encore ce travail non committe et ignore qu'il vient
-   d'atterrir. Sa prochaine session le lui signalerait de toute facon, mais un
-   `git pull` evite la confusion. **Quand les deux sont identiques, ne dis
-   rien** : envoyer quelqu'un vers la machine sur laquelle il se trouve deja
-   fait douter de tout le reste.
+7. **If the checkpoint came from another machine** -- that is, if `Origin`
+   differs from `This machine` -- tell the user to run `git pull` there. That
+   machine still holds this work uncommitted and does not know it has landed.
+   Its next session would say so anyway, but a `git pull` saves the confusion.
+   **When the two are the same, say nothing**: sending someone to the machine
+   they are already sitting at makes them doubt everything else.
 
-## Regles
+## Rules
 
-- Les messages suivent la convention deja visible dans `git log` du depot. Va la
-  lire plutot que d'imposer la tienne.
-- Ne decoupe jamais a l'interieur d'un fichier (`git add -p`). Si deux sujets se
-  croisent dans le meme fichier, fais un seul commit et dis pourquoi.
-- Ne committe jamais sans que l'utilisateur ait vu les messages.
-- Ne supprime le checkpoint qu'apres un push reussi.
-- Termine par une ligne : ce qui a ete committe, et le checkpoint supprime.
+- Messages follow the convention already visible in the repository's
+  `git log`. Go and read it rather than imposing your own.
+- Never split inside a file (`git add -p`). If two subjects are tangled in one
+  file, make a single commit and say why.
+- Never commit without the user having seen the messages.
+- Only delete the checkpoint after a successful push.
+- End with one line: what was committed, and that the checkpoint is gone.
