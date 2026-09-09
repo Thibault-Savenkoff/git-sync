@@ -1,14 +1,9 @@
 ---
 description: Turn the current checkpoint into real, reviewed commits on this branch
-allowed-tools: Bash(git:*), AskUserQuestion, Read
+allowed-tools: Bash(git:*), Bash(sh:*), AskUserQuestion, Read
 ---
 
-Branche courante : !`git symbolic-ref --quiet --short HEAD 2>/dev/null || echo "(HEAD detache)"`
-Checkpoint : !`git fetch -q origin "+refs/heads/git-sync/$(git symbolic-ref --quiet --short HEAD)":refs/git-sync/current 2>/dev/null; git rev-parse -q --verify refs/git-sync/current 2>/dev/null || echo "(aucun)"`
-Origine : !`git log -1 --format=%B refs/git-sync/current 2>/dev/null | sed -n 's/^Git-Sync-Machine:[[:space:]]*//p'`
-Base du checkpoint : !`git log -1 --format=%B refs/git-sync/current 2>/dev/null | sed -n 's/^Git-Sync-Base:[[:space:]]*//p'`
-HEAD local : !`git rev-parse HEAD`
-Resume : !`git diff --stat HEAD refs/git-sync/current 2>/dev/null | tail -30`
+!`sh "${CLAUDE_PLUGIN_ROOT}/commands/land-context.sh"`
 
 L'utilisateur a demande : $ARGUMENTS
 
@@ -52,9 +47,13 @@ entre sans que l'utilisateur ait valide le message.
    Les hooks nettoient d'eux-memes la ligne devenue obsolete au demarrage
    suivant, donc il n'y a rien a faire de plus ici.
 
-7. **Dis a l'utilisateur d'aller sur l'autre machine.** Elle detient encore ce
-   travail non committe et ignore qu'il vient d'atterrir. Sa prochaine session
-   le lui signalera, mais un `git pull` de sa part evite la confusion.
+7. **Si le checkpoint venait d'une autre machine** -- c'est-a-dire si `Origine`
+   differe de `Cette machine` -- dis a l'utilisateur d'y faire un `git pull`.
+   Elle detient encore ce travail non committe et ignore qu'il vient
+   d'atterrir. Sa prochaine session le lui signalerait de toute facon, mais un
+   `git pull` evite la confusion. **Quand les deux sont identiques, ne dis
+   rien** : envoyer quelqu'un vers la machine sur laquelle il se trouve deja
+   fait douter de tout le reste.
 
 ## Regles
 
