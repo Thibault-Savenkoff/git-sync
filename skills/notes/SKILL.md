@@ -1,14 +1,18 @@
 ---
 name: notes
-description: Write or refresh the "État courant" section of the repo's CLAUDE.md, so a compaction, a /clear, or a lost session does not take the project's state with it. Use when the user asks for a project write-up, a recap, notes, a "compte rendu", or to save the project state -- and proactively after a milestone lands: a feature implemented, a refactor finished, an architecture decision made, a nasty bug root-caused. Also use to recover state from a past session archived by git-sync. Not for writing a commit message, a changelog, or a PR body.
+description: Write or refresh the "Current state" section of the repo's CLAUDE.md, so a compaction, a /clear, or a lost session does not take the project's state with it. Use when the user asks for a project write-up, a recap, notes, or to save the project state -- and proactively after a milestone lands: a feature implemented, a refactor finished, an architecture decision made, a nasty bug root-caused. Also use to recover state from a past session archived by git-sync. Not for writing a commit message, a changelog, or a PR body.
 ---
 
 # Notes
 
 Keeps the durable state of a project in one file the next session reloads for
 free. `CLAUDE.md` at the repo root is read automatically at every session
-start, and git-sync's own hooks commit and push it -- so what is written here
-survives compaction, `/clear`, a crash, and a change of machine.
+start, and git-sync pushes it inside every checkpoint -- so what is written
+here survives compaction, `/clear`, a crash, and a change of machine.
+
+This matters more than it looks: **a checkpoint carries the code, `CLAUDE.md`
+carries the reasoning.** Without it the other machine receives a diff with no
+story attached.
 
 ## Two modes
 
@@ -17,7 +21,7 @@ Pick by what the user gives you.
 | Input | Mode | Source |
 | --- | --- | --- |
 | nothing, or "recap this" | **live** | this conversation |
-| a session file, a date, "the session from yesterday" | **recover** | `~/.claude/git-sync-sessions/` |
+| a session file, a date, "yesterday's session" | **recover** | `~/.claude/git-sync-sessions/` |
 
 ### Live
 
@@ -57,23 +61,23 @@ Never a file tree, never recopied code, never a restated schema, never what
 
 ## Format
 
-One `## État courant` section in `CLAUDE.md` at the repo root, created with the
-file if either is missing. Short bullets. Overwrite the section in place --
+One `## Current state` section in `CLAUDE.md` at the repo root, created with
+the file if either is missing. Short bullets. Overwrite the section in place --
 this is current state, not a journal, so stale entries get removed rather than
 appended to. Leave the rest of `CLAUDE.md` alone.
 
 ```markdown
-## État courant
+## Current state
 
-_Mis à jour le 2026-09-06._
+_Updated 2026-09-09._
 
-### Décisions
+### Decisions
 - ...
 
-### En cours
+### In flight
 - ...
 
-### Pièges
+### Traps
 - ...
 ```
 
@@ -89,5 +93,5 @@ Drop a heading with nothing under it rather than leaving it empty.
 - `CLAUDE.md` is tracked and gets pushed. Nothing secret goes in it -- no
   tokens, no keys, no `.env` values. Reference them by name.
 - Confirm with the user before writing when the repo is not theirs, or when
-  `CLAUDE.md` already has an `## État courant` written by someone else.
+  `CLAUDE.md` already has a `## Current state` written by someone else.
 - End with one line naming what changed.

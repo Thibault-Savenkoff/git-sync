@@ -15,15 +15,15 @@ if ($LASTEXITCODE -ne 0) {
   $trailer = "Committed automatically by git-sync`nhttps://github.com/Thibault-Savenkoff/git-sync"
   git @signArgs commit -m "WIP: auto-sync $(Get-Date -Format 'yyyy-MM-dd HH:mm')" -m $trailer *> $null
   if (-not (Gs-HasRemote)) {
-    $msg = "git-sync: commit local (aucun remote configure)."
+    $msg = "git-sync: committed locally (no remote configured)."
   } else {
     $logFile = Join-Path $repoRoot ".git/git-sync-push-error.log"
     git push *> $logFile
     if ($LASTEXITCODE -eq 0) {
       Remove-Item -Force $logFile -ErrorAction SilentlyContinue
-      $msg = "git-sync: commit et push effectues."
+      $msg = "git-sync: committed and pushed."
     } else {
-      $msg = "git-sync: commit effectue mais push echoue -- voir .git/git-sync-push-error.log"
+      $msg = "git-sync: committed but the push failed -- see .git/git-sync-push-error.log"
     }
   }
 }

@@ -11,30 +11,30 @@
 new_world
 clone_b
 
-it "A pousse un checkpoint, puis committe a la main sans passer par land"
-printf 'du travail\n' >> file.txt
+it "A pushes a checkpoint, then commits by hand without landing"
+printf 'some work\n' >> file.txt
 run_stop >/dev/null
-[ -n "$(sync_branch_sha git-sync/main)" ] || fail "pas de checkpoint"
-git add -A && git commit -qm "feat: committe a la main" && git push -q origin main
+[ -n "$(sync_branch_sha git-sync/main)" ] || fail "no checkpoint"
+git add -A && git commit -qm "feat: committed by hand" && git push -q origin main
 
-it "A nettoie son propre checkpoint devenu inutile"
+it "A retires its own now-meaningless checkpoint"
 out=$(run_stop)
-assert_eq "" "$(sync_branch_sha git-sync/main)" "checkpoint obsolete supprime"
+assert_eq "" "$(sync_branch_sha git-sync/main)" "stale checkpoint deleted"
 
-it "B n'est pas harcele par un checkpoint perime"
+it "B is not nagged by a stale checkpoint"
 cd "$B"; git pull -q --ff-only 2>/dev/null
 out=$(run_start)
-assert_not_contains "$out" "part d'un autre commit" "avertissement inutile"
+assert_not_contains "$out" "based on a different commit" "needless warning"
 
-it "mais ne touche pas a un checkpoint frais de l'autre machine"
+it "but leaves a fresh checkpoint from the other machine alone"
 cd "$B"; git pull -q --ff-only 2>/dev/null
 printf 'travail de B\n' >> file.txt
 run_stop >/dev/null
 ckpt_b=$(sync_branch_sha git-sync/main)
-[ -n "$ckpt_b" ] || fail "B n'a pas pousse"
+[ -n "$ckpt_b" ] || fail "B did not push"
 cd "$A"; git pull -q --ff-only 2>/dev/null
 run_stop >/dev/null
-assert_eq "$ckpt_b" "$(sync_branch_sha git-sync/main)" "le checkpoint de B a survecu"
+assert_eq "$ckpt_b" "$(sync_branch_sha git-sync/main)" "B's checkpoint survived"
 
 cleanup_world
 exit $FAILURES

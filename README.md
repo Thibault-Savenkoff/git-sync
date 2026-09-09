@@ -37,7 +37,7 @@ git-sync separates them.
 - **On session stop**: push a checkpoint of the work tree. `[skip ci]` by
   default, so intermediate states don't burn CI minutes.
 - **`/git-sync:land`**: turn the checkpoint into reviewed commits, then delete it.
-- **Project notes**: the `git-sync:notes` skill writes an `## État courant`
+- **Project notes**: the `git-sync:notes` skill writes a `## Current state`
   section into `CLAUDE.md`. This matters more than it looks: **a checkpoint
   carries code, `CLAUDE.md` carries the reasoning.** It is reloaded automatically
   at every session start, so the other machine gets the decisions and the traps,
@@ -120,6 +120,13 @@ Checkpoints clean up after themselves. One whose content has since been
 committed is retired, and so is one whose branch was renamed or deleted —
 otherwise every branch you ever synced would leave a dead `git-sync/*` behind,
 which is exactly the clutter this mode exists to avoid.
+
+## Upgrading
+
+**2.0 → 2.1** renames the section the `git-sync:notes` skill writes, from
+`## État courant` to `## Current state`, along with every other user-facing
+string. An existing `CLAUDE.md` keeps its old section; the skill will start a
+new one beside it. Rename the heading by hand if you want them merged.
 
 ## Upgrading from 1.x
 

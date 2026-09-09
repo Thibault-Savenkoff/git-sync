@@ -6,48 +6,48 @@
 new_world
 clone_b
 
-it "A pousse un checkpoint (modif, ajout, suppression)"
-printf 'ligne 2 depuis A\n' >> file.txt
+it "A pushes a checkpoint (change, addition, deletion)"
+printf 'line 2 from A\n' >> file.txt
 printf 'nouveau depuis A\n' > added.txt
-printf 'a supprimer\n' > doomed.txt
+printf 'to delete\n' > doomed.txt
 git add doomed.txt && git commit -qm "add doomed" && git push -q origin main
 rm doomed.txt
 run_stop >/dev/null
-[ -n "$(sync_branch_sha git-sync/main)" ] || fail "pas de checkpoint"
+[ -n "$(sync_branch_sha git-sync/main)" ] || fail "no checkpoint"
 
-it "B recupere le travail de A dans son work tree"
+it "B receives A's work in its work tree"
 cd "$B"
 git pull -q --ff-only 2>/dev/null
 out=$(run_start)
-assert_contains "$(cat file.txt)" "ligne 2 depuis A" "file.txt modifie"
-[ -f added.txt ] || fail "added.txt n'est pas arrive"
-[ ! -f doomed.txt ] || fail "doomed.txt aurait du etre supprime"
+assert_contains "$(cat file.txt)" "line 2 from A" "file.txt modified"
+[ -f added.txt ] || fail "added.txt did not arrive"
+[ ! -f doomed.txt ] || fail "doomed.txt should have been removed"
 
-it "B annonce l'arrivee et decrit ce qui a change"
-assert_contains "$out" "applique depuis git-sync/main" "systemMessage"
-assert_contains "$out" "machineA" "machine d'origine"
-assert_contains "$out" "added.txt" "le diff --stat injecte"
+it "B announces the arrival and describes what changed"
+assert_contains "$out" "applied from git-sync/main" "systemMessage"
+assert_contains "$out" "machineA" "origin machine"
+assert_contains "$out" "added.txt" "the injected diff --stat"
 
-it "sur B le travail est non committe, HEAD n'a pas bouge"
+it "on B the work is uncommitted and HEAD has not moved"
 assert_eq "$(git rev-parse origin/main)" "$(git rev-parse HEAD)" "HEAD"
-[ -n "$(git status --porcelain)" ] || fail "le travail devrait etre non committe"
+[ -n "$(git status --porcelain)" ] || fail "the work should be uncommitted"
 
-it "B ne rejoue pas son propre checkpoint"
+it "B does not replay its own checkpoint"
 printf 'ligne 3 depuis B\n' >> file.txt
 run_stop >/dev/null
 before=$(cat file.txt)
 run_start >/dev/null
-assert_eq "$before" "$(cat file.txt)" "file.txt apres re-lecture"
+assert_eq "$before" "$(cat file.txt)" "file.txt after re-reading"
 
-it "A refuse d'ecraser le checkpoint de B (lease perime)"
+it "A refuses to overwrite B's checkpoint (stale lease)"
 cd "$A"
 printf 'ligne 4 depuis A\n' >> file.txt
 out=$(run_stop)
-assert_contains "$out" "autre machine a pousse" "message de refus"
+assert_contains "$out" "another machine pushed" "message de refus"
 
-it "et le checkpoint de B est intact sur le remote"
+it "and B's checkpoint is intact on the remote"
 body=$(git fetch -q origin "refs/heads/git-sync/main:refs/probe/x" 2>/dev/null; git log -1 --format=%B refs/probe/x)
-assert_contains "$body" "Git-Sync-Machine: machineB" "proprietaire du checkpoint"
+assert_contains "$body" "Git-Sync-Machine: machineB" "checkpoint owner"
 
 cleanup_world
 
@@ -56,23 +56,23 @@ cleanup_world
 new_world
 clone_b
 
-it "B refuse d'appliquer par dessus des modifications qui ne sont pas les siennes"
+it "B refuses to apply over changes that are not its own"
 # La distinction qui compte : du travail deja pousse par soi-meme peut etre
 # ecrase sans rien perdre, du travail jamais pousse ne le peut pas.
 printf 'travail de A\n' >> file.txt
 run_stop >/dev/null
 cd "$B"; git pull -q --ff-only 2>/dev/null
-printf 'travail local jamais pousse\n' >> file.txt
+printf 'local work never pushed\n' >> file.txt
 out=$(run_start)
-assert_contains "$out" "modifications locales" "refus"
-assert_contains "$(cat file.txt)" "travail local jamais pousse" "le travail de B est intact"
-assert_not_contains "$(cat file.txt)" "travail de A" "rien n'a ete applique"
+assert_contains "$out" "local changes" "refusal"
+assert_contains "$(cat file.txt)" "local work never pushed" "B's work is intact"
+assert_not_contains "$(cat file.txt)" "travail de A" "nothing was applied"
 
-it "B refuse quand les bases divergent"
+it "B refuses when the bases diverge"
 git checkout -q -- .; git clean -qfd 2>/dev/null
-git commit -q --allow-empty -m "commit local de B"
+git commit -q --allow-empty -m "B's local commit"
 out=$(run_start)
-assert_contains "$out" "part d'un autre commit" "refus"
+assert_contains "$out" "based on a different commit" "refusal"
 
 cleanup_world
 exit $FAILURES

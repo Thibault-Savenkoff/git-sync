@@ -22,23 +22,23 @@ CONTEXT=""
 if [ "$(gs_mode)" = "checkpoint" ]; then
   SYNC_BRANCH=$(gs_sync_branch || true)
   if [ -z "$SYNC_BRANCH" ]; then
-    gs_json Stop "git-sync: HEAD detache, pas de checkpoint (aucune branche a suivre)." ""
+    gs_json Stop "git-sync: detached HEAD, no branch to hang a checkpoint off." ""
     exit 0
   fi
   if ! gs_has_commits; then
-    gs_json Stop "git-sync: ce depot n'a encore aucun commit, il n'y a pas de base sur laquelle poser un checkpoint. Fais un premier commit." ""
+    gs_json Stop "git-sync: this repository has no commits yet, so there is no base for a checkpoint. Make a first commit." ""
     exit 0
   fi
 
   REMOTE=$(gs_remote)
   if [ -z "$REMOTE" ]; then
-    gs_json Stop "git-sync: impossible de choisir un remote (plusieurs configures, aucun nomme origin, et la branche n'a pas d'upstream). Fixe-le avec: git branch --set-upstream-to=<remote>/$(gs_branch)" ""
+    gs_json Stop "git-sync: cannot pick a remote (several configured, none named origin, and this branch has no upstream). Set one with: git branch --set-upstream-to=<remote>/$(gs_branch)" ""
     exit 0
   fi
 
   PRUNED=$(gs_prune_orphans)
   if [ -n "$PRUNED" ]; then
-    MSG="git-sync: checkpoints retires pour des branches disparues ($PRUNED)."
+    MSG="git-sync: retired checkpoints for branches that no longer exist ($PRUNED)."
   fi
 
   # Snapshot the work tree. See gs_snapshot_tree: one implementation, shared
@@ -46,7 +46,7 @@ if [ "$(gs_mode)" = "checkpoint" ]; then
   gs_snapshot_tree
   TREE="$GS_TREE"
   if [ -n "$GS_SUBMODULES" ]; then
-    MSG="${MSG:+$MSG }git-sync: le contenu des sous-modules n'est pas transporte ($GS_SUBMODULES) -- committe et pousse-les dans leur propre depot."
+    MSG="${MSG:+$MSG }git-sync: submodule contents do not travel with a checkpoint ($GS_SUBMODULES) -- commit and push them in their own repository."
   fi
 
   HEAD_SHA=$(git rev-parse HEAD)
@@ -57,13 +57,13 @@ if [ "$(gs_mode)" = "checkpoint" ]; then
     # dead git-sync/* behind, which is the clutter this whole mode exists to
     # avoid. The lease makes this safe: it deletes only the exact object we
     # pushed, never a fresh checkpoint the other machine put there meanwhile.
-    MSG="${MSG:+$MSG }git-sync: rien a synchroniser."
+    MSG="${MSG:+$MSG }git-sync: nothing to sync."
     OURS=$(gs_known_push "$SYNC_BRANCH")
     if [ -n "$OURS" ]; then
       if git push --force-with-lease="refs/heads/$SYNC_BRANCH:$OURS" \
              "$REMOTE" ":refs/heads/$SYNC_BRANCH" >/dev/null 2>&1; then
         gs_forget_push "$SYNC_BRANCH"
-        MSG="${MSG% }git-sync: travail committe, checkpoint obsolete retire de $SYNC_BRANCH."
+        MSG="${MSG% }git-sync: work is committed, retired the stale checkpoint on $SYNC_BRANCH."
       fi
     fi
   else
@@ -71,10 +71,10 @@ if [ "$(gs_mode)" = "checkpoint" ]; then
     SKIP_CI=" [skip ci]"
     if gs_bool checkpointCi; then SKIP_CI=""; fi
     MACHINE=$(gs_machine)
-    BODY="sync depuis $MACHINE${SKIP_CI}
+    BODY="sync from $MACHINE${SKIP_CI}
 
-Etat de travail non committe, pousse automatiquement par git-sync.
-A integrer avec /git-sync:land, jamais a merger tel quel.
+Uncommitted work in progress, pushed automatically by git-sync.
+Land it with /git-sync:land; never merge this branch as it stands.
 
 Git-Sync-Base: $HEAD_SHA
 Git-Sync-Machine: $MACHINE
@@ -94,14 +94,14 @@ Git-Sync-Branch: $(gs_branch)"
       rm -f "$LOG"
       gs_remember_push "$SYNC_BRANCH" "$CKPT"
       gs_remember_mine "$SYNC_BRANCH" "$TREE"
-      MSG="${MSG:+$MSG }git-sync: checkpoint pousse sur $SYNC_BRANCH ($STAT)."
+      MSG="${MSG:+$MSG }git-sync: checkpoint pushed to $SYNC_BRANCH ($STAT)."
     elif [ "$(gs_remote_tree "$SYNC_BRANCH")" = "$TREE" ]; then
       # Someone got there first with exactly our content -- typically a second
       # Claude session on this same repo. Nothing is missing from the remote, so
       # sending the user to a log file would be alarming and pointless.
       gs_remember_push "$SYNC_BRANCH" "$(gs_remote_ref "$SYNC_BRANCH")"
       gs_remember_mine "$SYNC_BRANCH" "$TREE"
-      MSG="${MSG:+$MSG }git-sync: checkpoint deja a jour sur $SYNC_BRANCH."
+      MSG="${MSG:+$MSG }git-sync: checkpoint already up to date on $SYNC_BRANCH."
     elif grep -q "stale info" "$LOG" 2>/dev/null; then
       # A refused lease has two very different causes, and telling the user the
       # wrong one is worse than saying nothing. Ask the remote which it is --
@@ -111,12 +111,12 @@ Git-Sync-Branch: $(gs_branch)"
         # The checkpoint is gone: /git-sync:land committed its content and
         # deleted it. Holding the old lease would block every future push.
         gs_forget_push "$SYNC_BRANCH"
-        MSG="git-sync: le checkpoint de $SYNC_BRANCH a ete integre puis supprime depuis une autre machine. Rien n'a ete pousse cette fois-ci -- verifie avec 'git pull' que ton travail local n'est pas deja dans l'historique, puis relance une session."
+        MSG="git-sync: the checkpoint on $SYNC_BRANCH was landed and deleted from another machine. Nothing was pushed this time -- check with 'git pull' whether your local work is already in the history, then start a new session."
       else
-        MSG="git-sync: checkpoint refuse -- une autre machine a pousse sur $SYNC_BRANCH. Rien n'a ete ecrase. Lance /git-sync:land ou resous la divergence a la main."
+        MSG="git-sync: checkpoint refused -- another machine pushed to $SYNC_BRANCH. Nothing was overwritten. Run /git-sync:land, or resolve the divergence by hand."
       fi
     else
-      MSG="git-sync: push du checkpoint echoue -- voir .git/git-sync-push-error.log"
+      MSG="git-sync: pushing the checkpoint failed -- see .git/git-sync-push-error.log"
     fi
   fi
 else
@@ -132,7 +132,7 @@ if gs_bool notes "$([ "$(gs_mode)" = "checkpoint" ] && echo true || echo false)"
   STAMP="$REPO_ROOT/.git/git-sync-notes-stamp"
   if [ ! -f "$STAMP" ] || [ -z "$(find "$STAMP" -mmin -30 2>/dev/null)" ]; then
     : > "$STAMP"
-    CONTEXT="git-sync: si quelque chose de durable a ete decide ou construit depuis la derniere mise a jour, invoque la skill git-sync:notes pour rafraichir la section '## Etat courant' de CLAUDE.md. C'est ce fichier qui transporte le pourquoi vers l'autre machine -- le checkpoint ne transporte que le code. Sinon ne touche a rien et n'en parle pas."
+    CONTEXT="git-sync: if anything durable was decided or built since the last update, invoke the git-sync:notes skill to refresh the '## Current state' section of CLAUDE.md. That file is what carries the reasoning to the other machine -- the checkpoint carries only the code. Otherwise change nothing and do not mention this."
   fi
 fi
 

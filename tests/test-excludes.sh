@@ -5,12 +5,12 @@
 
 new_world
 
-it "n'ecrit pas dans le .gitignore du depot"
-printf 'du travail\n' >> file.txt
+it "does not write into the repository's own .gitignore"
+printf 'some work\n' >> file.txt
 run_stop >/dev/null
-[ ! -f .gitignore ] || fail ".gitignore a ete cree dans le depot de l'utilisateur"
+[ ! -f .gitignore ] || fail ".gitignore was created in the user's repository"
 
-it "exclut les secrets et le bruit du checkpoint"
+it "keeps secrets and noise out of the checkpoint"
 printf 'SECRET=1\n' > .env
 printf 'cle privee\n' > deploy.pem
 printf 'jeton\n' > aws-credentials
@@ -19,17 +19,17 @@ printf 'vrai code\n' >> file.txt
 run_stop >/dev/null
 CKPT=$(sync_branch_sha git-sync/main)
 files=$(git ls-tree -r --name-only "$CKPT")
-assert_contains "$files" "file.txt" "le vrai fichier est bien la"
+assert_contains "$files" "file.txt" "the real file is there"
 for bad in .env deploy.pem aws-credentials node_modules/junk.js; do
-  case "$files" in *"$bad"*) fail "$bad est parti dans le checkpoint" ;; esac
+  case "$files" in *"$bad"*) fail "$bad went into the checkpoint" ;; esac
 done
 
-it "n'exclut pas un fichier deja suivi par le depot"
+it "does not exclude a file the repository already tracks"
 git add -f .env && git commit -qm "l'utilisateur a choisi de suivre .env"
 printf 'SECRET=2\n' > .env
 run_stop >/dev/null
 CKPT=$(sync_branch_sha git-sync/main)
-assert_contains "$(git show "$CKPT:.env")" "SECRET=2" ".env suivi"
+assert_contains "$(git show "$CKPT:.env")" "SECRET=2" "tracked .env"
 
 cleanup_world
 exit $FAILURES

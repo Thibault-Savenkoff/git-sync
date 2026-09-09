@@ -13,8 +13,8 @@ for s in $SHELLS; do
   done
 done
 if [ "$total" -eq 0 ]; then
-  printf '\nTout est vert.\n'
+  printf '\nAll green.\n'
 else
-  printf '\n%s fichier(s) de test en echec.\n' "$total"
+  printf '\n%s test file(s) failed.\n' "$total"
 fi
 exit "$total"

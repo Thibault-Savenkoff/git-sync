@@ -11,26 +11,26 @@ new_world
 clone_b
 
 it "A pousse, B recupere"
-printf 'du travail de A\n' >> file.txt
+printf 'work from A\n' >> file.txt
 run_stop >/dev/null
 cd "$B"; git pull -q --ff-only 2>/dev/null; run_start >/dev/null
-assert_contains "$(cat file.txt)" "du travail de A" "arrivee sur B"
+assert_contains "$(cat file.txt)" "work from A" "arrival on B"
 
-it "B fait atterrir le travail et supprime le checkpoint (ce que fait /git-sync:land)"
-git add -A && git commit -qm "feat: le vrai commit" && git push -q origin main
+it "B lands the work and deletes the checkpoint (what /git-sync:land does)"
+git add -A && git commit -qm "feat: the real commit" && git push -q origin main
 git push -q origin --delete git-sync/main
 assert_eq "" "$(sync_branch_sha git-sync/main)" "checkpoint supprime"
 
-it "A diagnostique correctement : le travail a atterri, pas un conflit de machines"
+it "A diagnoses it correctly: the work landed, not a machine conflict"
 cd "$A"
 out=$(run_stop)
-assert_not_contains "$out" "autre machine a pousse" "faux diagnostic"
+assert_not_contains "$out" "another machine pushed" "faux diagnostic"
 
-it "A n'est pas bloque definitivement : il peut a nouveau pousser"
+it "A is not deadlocked: it can push again"
 git reset -q --hard origin/main 2>/dev/null || git fetch -q origin && git reset -q --hard origin/main
-printf 'nouveau travail de A\n' >> file.txt
+printf 'new work from A\n' >> file.txt
 out=$(run_stop)
-assert_contains "$out" "checkpoint pousse" "A a repris la main"
+assert_contains "$out" "checkpoint pushed" "A took the lead back"
 
 cleanup_world
 exit $FAILURES

@@ -16,21 +16,21 @@ git init -q -b main "$WORLD/subsrc"
 git submodule add -q "$WORLD/sub.git" vendor 2>/dev/null
 git commit -qm "add submodule" && git push -q origin main 2>/dev/null
 
-it "previent que le contenu d'un sous-module ne voyage pas"
-printf 'du travail\n' >> file.txt
+it "warns that submodule content does not travel"
+printf 'some work\n' >> file.txt
 ( cd vendor && echo v2 > lib.txt && git add -A \
     && git -c user.email=s@t -c user.name=S commit -qm v2 ) >/dev/null 2>&1
 out=$(run_stop)
-assert_contains "$out" "sous-modules" "avertissement"
-assert_contains "$out" "vendor" "chemin du sous-module"
+assert_contains "$out" "submodule contents" "warning"
+assert_contains "$out" "vendor" "submodule path"
 
-it "n'expedie pas un pointeur que l'autre machine ne peut pas resoudre"
+it "does not ship a pointer the other machine cannot resolve"
 git fetch -q origin "+refs/heads/git-sync/main:refs/probe" 2>/dev/null
 assert_eq "$(git ls-tree HEAD vendor | awk '{print $3}')" \
-          "$(git ls-tree refs/probe vendor | awk '{print $3}')" "gitlink epingle sur HEAD"
+          "$(git ls-tree refs/probe vendor | awk '{print $3}')" "gitlink pinned to HEAD"
 
-it "et le reste du travail passe quand meme"
-assert_contains "$(git show refs/probe:file.txt)" "du travail" "file.txt"
+it "and the rest of the work still gets through"
+assert_contains "$(git show refs/probe:file.txt)" "some work" "file.txt"
 
 cleanup_world
 exit $FAILURES
